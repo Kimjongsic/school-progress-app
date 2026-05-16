@@ -9,6 +9,8 @@
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-800">
 
+  <!-- index.html의 <body> 내부를 아래와 같이 업데이트하세요 -->
+
   <!-- 1. 로그인 화면 -->
   <div id="login-view" class="flex flex-col items-center justify-center min-h-screen px-4">
     <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-slate-100">
@@ -23,6 +25,34 @@
           <input type="password" id="login-pin" maxlength="4" inputmode="numeric" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5] tracking-widest text-center text-xl" placeholder="••••">
         </div>
         <button id="btn-login" class="w-full bg-[#005CC5] text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm">로그인</button>
+        
+        <!-- 회원가입 이동 버튼 추가 -->
+        <p class="text-sm text-center text-slate-400 mt-4">
+          처음이신가요? <button id="btn-go-signup" class="text-[#005CC5] font-semibold hover:underline">회원가입 하기</button>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-2. 회원가입 화면 (추가된 부분, 초기에는 숨김) -->
+  <div id="signup-view" class="hidden flex flex-col items-center justify-center min-h-screen px-4">
+    <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-slate-100">
+      <h2 class="text-2xl font-bold text-center text-[#005CC5] mb-6">선생님 회원가입</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">교사 이름</label>
+          <input type="text" id="signup-name" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5]" placeholder="성함을 입력하세요 (공백없이)">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">사용할 비밀번호 (숫자 4자리)</label>
+          <input type="password" id="signup-pin" maxlength="4" inputmode="numeric" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5] tracking-widest text-center text-xl" placeholder="••••">
+        </div>
+        <button id="btn-signup-submit" class="w-full bg-[#005CC5] text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm">가입하기</button>
+        
+        <!-- 로그인 이동 버튼 추가 -->
+        <p class="text-sm text-center text-slate-400 mt-4">
+          이미 계정이 있으신가요? <button id="btn-go-login" class="text-[#005CC5] font-semibold hover:underline">로그인으로 돌아가기</button>
+        </p>
       </div>
     </div>
   </div>
