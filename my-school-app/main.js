@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
 // 1. Supabase 연동 설정 (★본인의 Supabase 정보로 변경 필수★)
-const supabaseUrl = 'https://내_프로젝트_주소.supabase.co'
-const supabaseKey = '내_익명_Anon_KEY'
+const supabaseUrl = 'https://gckplcpwrvabhqqohuib.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja3BsY3B3cnZhYmhxcW9odWliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDI3NTYsImV4cCI6MjA5NDQ3ODc1Nn0.rg9p24pmgeAIe6EcNZjIFEePXtpesnOnOZRlQKyUcuU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 // 전역 상태 관리 변수
