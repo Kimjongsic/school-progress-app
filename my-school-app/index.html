@@ -33,12 +33,11 @@
     input:focus { outline: none; }
     .mini-input-chip { background: white; border: 2px solid #005CC5; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: 700; width: 85px; }
     
-    /* [오류 수정 완료] CSS 표준 속성명 적용 */
     .view-header { padding: 32px 32px 20px; background: white; flex-shrink: 0; }
     .teacher-label { font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
     .teacher-name-highlight { color: #005CC5; font-weight: 900; }
-    .page-title { font-size: 24px; font-weight: 900; color: #0F172A; letter-spacing: -0.025em; } /* tracking -> letter-spacing */
-    .header-action-btn { width: 40px; height: 40px; background-color: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748B; transition: all 0.2s; } /* items-center -> align-items */
+    .page-title { font-size: 24px; font-weight: 900; color: #0F172A; letter-spacing: -0.025em; }
+    .header-action-btn { width: 40px; height: 40px; background-color: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748B; transition: all 0.2s; }
     .header-action-btn:active { transform: scale(0.9); background-color: #E2E8F0; }
   </style>
 </head>
@@ -61,7 +60,7 @@
         <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold outline-none">
         <input type="password" id="loginPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold outline-none">
         <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg mt-4 active:scale-95 shadow-xl transition-all">로그인</button>
-        <button id="btnOpenSignUp" class="w-full text-slate-400 font-bold py-4 text-sm">회원가입</button>
+        <button id="btnOpenSignUp" class="w-full text-slate-400 font-bold py-4 text-sm">처음이신가요? 회원가입</button>
       </div>
     </section>
 
@@ -183,7 +182,9 @@
         <div class="space-y-6">
           <div>
             <label class="text-[10px] font-black text-amber-500 mb-2 block uppercase ml-1 tracking-wider">LAST</label>
-            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]"><p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p></div>
+            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]">
+              <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
+            </div>
           </div>
           <div>
             <label class="text-[10px] font-black text-[#005CC5] mb-2 block uppercase ml-1 tracking-wider">TODAY</label>
@@ -193,11 +194,34 @@
             <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">MEMO</label>
             <textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
           </div>
-          <div class="flex justify-center pt-2"><button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button></div>
+          <div class="flex justify-center pt-2">
+            <button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button>
+          </div>
         </div>
       </div>
     </div>
 
+    <div id="moveSheet" class="fixed inset-x-0 bottom-0 z-[160] transform translate-y-full transition-transform duration-300">
+        <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
+          <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
+          <header class="mb-8">
+            <h3 class="text-2xl font-black text-slate-900 tracking-tight">수업 이동</h3>
+            <p class="text-sm font-medium text-slate-400 mt-1">이 수업을 언제로 옮길까요?</p>
+          </header>
+          <div class="space-y-6">
+            <div>
+              <label class="text-[10px] font-black text-slate-400 mb-2 block ml-1 uppercase tracking-widest">대상 날짜</label>
+              <input type="date" id="moveTargetDate" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none">
+            </div>
+            <div>
+              <label class="text-[10px] font-black text-slate-400 mb-2 block ml-1 uppercase tracking-widest">대상 교시</label>
+              <select id="moveTargetPeriod" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none appearance-none">
+                </select>
+            </div>
+            <button id="btnConfirmMove" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-xl active:scale-95 transition-all mt-4">이동 완료</button>
+          </div>
+        </div>
+      </div>
   </div>
 
   <script type="module" src="/main.js"></script>

@@ -12,7 +12,8 @@ let state = {
   maxPeriods: 7, 
   isSheetOpen: false,
   isEditMode: false,
-  isTagEditMode: false
+  isTagEditMode: false,
+  selectedMoveItem: null
 };
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
@@ -58,7 +59,6 @@ function initEvents() {
   });
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
-  
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
     if (state.isEditMode) {
       if(confirm('수정 중인 내용이 저장되지 않았습니다. 나갈까요?')) initApp();
@@ -69,14 +69,14 @@ function initEvents() {
   document.getElementById('btnAddPeriod')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true); }});
   document.getElementById('btnRemovePeriod')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true); }});
 
-  document.getElementById('sheetOverlay')?.addEventListener('click', () => toggleSheet(false));
+  document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleMoveSheet(false); toggleSettings(false); });
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
   document.getElementById('btnSettings')?.addEventListener('click', () => toggleSettings(true));
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
-  document.querySelectorAll('.btnCloseSheet').forEach(btn => btn.addEventListener('click', () => toggleSheet(false)));
+  document.getElementById('btnConfirmMove')?.addEventListener('click', handleConfirmMove);
 
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
@@ -92,6 +92,7 @@ function initEvents() {
   });
 }
 
+// 편집 모드 토글
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
@@ -204,6 +205,7 @@ window.fillCell = (type, val, color) => {
   }
 };
 
+// --- [핵심] 수업 이동 병합 렌더링 로직 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -211,33 +213,44 @@ async function fetchTimetable() {
   if (!list) return;
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
 
-  const [basic, records] = await Promise.all([
-    supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName).order('period'),
-    supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
+  const [basic, records, changes] = await Promise.all([
+    supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName),
+    supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr),
+    supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', dateStr)
   ]);
 
-  if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
+  // 스케줄 병합 로직
+  let finalSchedule = [];
+  if (basic.data) {
+    const cancelledPeriods = changes.data?.filter(c => c.change_type === 'cancelled').map(c => c.period) || [];
+    finalSchedule = basic.data.filter(b => !cancelledPeriods.includes(b.period));
+  }
+  if (changes.data) {
+    const addedLessons = changes.data.filter(c => c.change_type === 'added');
+    finalSchedule = [...finalSchedule, ...addedLessons].sort((a, b) => a.period - b.period);
+  }
 
-  const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
+  if (finalSchedule.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
+
+  const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
     const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
     const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
 
     return `
-      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer" 
-           onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer">
         <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
             <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
             <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
-          <div class="w-10 h-10 rounded-2xl ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-xl">
-            <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-pen-to-square'}"></i>
-          </div>
+          <button onclick='event.stopPropagation(); window.openMoveSheet(${JSON.stringify(item)})' class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center active:bg-blue-50 active:text-[#005CC5]">
+            <i class="fa-solid fa-arrow-right-arrow-left text-sm"></i>
+          </button>
         </div>
-        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
           <div class="flex items-center gap-3">
             <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
             <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
@@ -252,15 +265,53 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
+// --- [신규] 수업 이동 제어 로직 ---
+window.openMoveSheet = (item) => {
+    state.selectedMoveItem = item;
+    const pSelect = document.getElementById('moveTargetPeriod');
+    pSelect.innerHTML = Array.from({length:15}, (_, i) => `<option value="${i+1}">${i+1}교시</option>`).join('');
+    pSelect.value = item.period;
+    document.getElementById('moveTargetDate').value = state.activeDate.toISOString().split('T')[0];
+    toggleMoveSheet(true);
+};
+
+function toggleMoveSheet(open) {
+    const s = document.getElementById('moveSheet');
+    const o = document.getElementById('sheetOverlay');
+    if (s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+    if (o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
+}
+
+async function handleConfirmMove() {
+    const targetDate = document.getElementById('moveTargetDate').value;
+    const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
+    const originalDate = state.activeDate.toISOString().split('T')[0];
+    if (!targetDate) return alert('날짜를 선택하세요.');
+
+    showView('loadingView');
+    try {
+        // 1. 기존 수업 취소 처리
+        await supabase.from('lesson_changes').insert({
+            user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period,
+            subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled'
+        });
+        // 2. 대상 날짜에 보강 추가 처리
+        await supabase.from('lesson_changes').insert({
+            user_name: state.user.name, date: targetDate, period: targetPeriod,
+            subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added'
+        });
+        alert('수업이 성공적으로 이동되었습니다.');
+        toggleMoveSheet(false); fetchTimetable();
+    } catch (err) { alert('처리 중 오류 발생'); }
+    finally { showView('mainView'); }
+}
+
+// --- 나머지 유틸리티 ---
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
   const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
-  const tagHtml = `
-    <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
-    <span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
-    <span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
-  `;
+  const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   document.getElementById('prevProgressText').innerText = prevContent;
   document.getElementById('progContent').value = todayRec ? todayRec.content : '';
@@ -290,7 +341,6 @@ async function handleLogin() {
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-  else alert('로그인 정보를 확인해주세요.');
 }
 
 async function handleNextButton() {
@@ -334,17 +384,11 @@ async function openEditTimetable() {
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
-        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
-        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
-    });
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
     showView('signUpContainer'); updateSignUpUI();
-    
-    // 수정창 헤더 정보 업데이트
     const editTeacher = document.getElementById('editTeacherName');
     if(editTeacher) editTeacher.innerText = state.user.name;
-
     current?.forEach(item => {
         const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
         const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
@@ -358,10 +402,8 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   const backB = document.getElementById('btnSignUpBack');
   const nextB = document.getElementById('btnNextStep');
-  
   const signupH = document.getElementById('signupHeaderContent');
   const editH = document.getElementById('editHeaderContent');
-
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
       if(signupH) signupH.classList.add('hidden');
