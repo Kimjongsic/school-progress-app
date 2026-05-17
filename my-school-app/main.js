@@ -206,7 +206,7 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// --- [개선] 대시보드 정렬 및 색상 ---
+// --- [개선] 대시보드 정렬 및 LAST 색상/두께 통일 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -242,13 +242,13 @@ async function fetchTimetable() {
           </div>
         </div>
         <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
-          <div class="flex items-start gap-3">
-            <span class="text-[9px] font-black text-slate-400 w-10 shrink-0 mt-0.5 tracking-widest">LAST</span>
-            <p class="text-[12px] font-bold text-slate-500 line-clamp-1 flex-1 leading-tight">${prev?.content || '-'}</p>
+          <div class="flex items-center gap-3">
+            <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest">LAST</span>
+            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
           </div>
-          <div class="flex items-start gap-3">
-            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 mt-0.5 tracking-widest">TODAY</span>
-            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-tight">${today ? today.content : '<span class="text-slate-200 font-medium italic">입력 전입니다</span>'}</p>
+          <div class="flex items-center gap-3">
+            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase">Today</span>
+            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic">입력 전입니다</span>'}</p>
           </div>
         </div>
       </div>`;
@@ -262,43 +262,34 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
   const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
   
-  // 3. 입력창 상단 태그 디자인 일치
   const tagHtml = `
     <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
-    <span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white" style="background:${subColor}">${item.subject}</span>
+    <span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
     <span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
   `;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
-  
   document.getElementById('prevProgressText').innerText = prevContent;
   document.getElementById('progContent').value = todayRec ? todayRec.content : '';
   document.getElementById('progNote').value = todayRec ? todayRec.note : '';
   toggleSheet(true);
 };
 
-// --- 나머지 데이터 저장 및 공통 로직 ---
+// --- 데이터 저장 및 가입/수정 공통 로직 ---
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
-
   if (!content) return alert('진도 내용을 입력해 주세요.');
-  
   showView('loadingView');
   try {
     const { error } = await supabase.from('lesson_records').upsert({
       user_name: state.user.name, date: dateStr, period: state.selectedItem.period,
       grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-'
     }, { onConflict: 'user_name, date, period, grade_class, subject' });
-
     if (error) throw error;
-    toggleSheet(false);
-    fetchTimetable();
-  } catch (err) {
-    alert('저장 실패: ' + err.message);
-  } finally {
-    showView('mainView');
-  }
+    toggleSheet(false); fetchTimetable();
+  } catch (err) { alert('저장 실패: ' + err.message); } 
+  finally { showView('mainView'); }
 }
 
 async function handleLogin() {
@@ -350,12 +341,15 @@ async function openEditTimetable() {
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
-        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
-        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
-    });
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-    showView('signUpContainer'); updateSignUpUI();
+    showView('signUpContainer'); 
+    updateSignUpUI();
+    
+    // [수정 1] 수정창 헤더에 선생님 이름 표시
+    const editTeacher = document.getElementById('editViewTeacherName');
+    if(editTeacher) editTeacher.innerText = state.user.name;
+
     current?.forEach(item => {
         const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
         const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);

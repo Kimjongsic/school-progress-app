@@ -51,7 +51,7 @@
       <div class="mb-12 text-center">
         <div class="inline-flex p-5 bg-blue-50 rounded-[32px] mb-6 shadow-sm"><i class="fa-solid fa-layer-group text-4xl text-[#005CC5]"></i></div>
         <h1 class="text-3xl font-black tracking-tight">Class Flow</h1>
-        <p class="text-slate-400 mt-2 font-medium">선생님을 위한 스마트 진도 관리</p>
+        <p class="text-slate-400 mt-2 font-medium text-sm">선생님을 위한 스마트 진도 관리</p>
       </div>
       <div class="space-y-3">
         <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold outline-none">
@@ -63,7 +63,7 @@
 
     <section id="signUpContainer" class="view-transition hidden fixed inset-0 z-[100] bg-white flex flex-col">
       <header class="p-6 flex justify-between items-center">
-        <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400"><i class="fa-solid fa-chevron-left"></i></button>
+        <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 active:bg-slate-200 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
         <div class="flex-1 px-4 text-center">
           <div id="progressWrapper" class="h-1.5 w-full bg-slate-100 rounded-full">
             <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div>
@@ -92,9 +92,14 @@
           </div>
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
+        
         <div id="step4" class="signUpStep hidden">
-          <h2 id="setupTitle" class="text-xl font-black mb-6 text-slate-900 text-left">전체 시간표</h2>
-          <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-4 space-y-4">
+          <div class="mb-8">
+            <p class="teacher-label"><span id="editViewTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
+            <h2 id="setupTitle" class="text-2xl font-black text-slate-900 tracking-tight">전체 시간표</h2>
+          </div>
+
+          <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4">
             <div class="flex justify-between items-center px-1">
                 <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
                 <button onclick="window.toggleTagEditMode()" class="text-[9px] font-black px-2 py-1 bg-slate-50 text-[#005CC5] rounded-md border border-blue-50" id="btnEditTagsStep4">편집</button>
@@ -103,6 +108,7 @@
             <div class="h-px bg-slate-100 mx-4"></div>
             <div id="quickGcSection" class="flex flex-wrap gap-2 justify-center"></div>
           </div>
+
           <table class="setup-table">
             <thead><tr class="header-cell"><th class="w-8 py-2"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
             <tbody id="setupTableBody"></tbody>
@@ -114,7 +120,7 @@
         </div>
       </div>
       <footer class="p-8 flex justify-center">
-        <button id="btnNextStep" class="w-3/5 bg-slate-900 text-white py-3.5 rounded-2xl font-bold text-base active:scale-95 shadow-lg">다음 단계</button>
+        <button id="btnNextStep" class="w-3/5 bg-slate-900 text-white py-3.5 rounded-2xl font-bold text-base active:scale-95 transition-all shadow-lg">다음 단계</button>
       </footer>
     </section>
 
@@ -167,9 +173,9 @@
 
         <div class="space-y-6">
           <div>
-            <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">LAST</label>
-            <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100 shadow-inner min-h-[58px]">
-              <p id="prevProgressText" class="text-slate-500 font-bold text-sm leading-relaxed">-</p>
+            <label class="text-[10px] font-black text-amber-500 mb-2 block uppercase ml-1 tracking-wider">LAST</label>
+            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]">
+              <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
             </div>
           </div>
           
