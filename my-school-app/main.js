@@ -44,14 +44,12 @@ function initEvents() {
     updateSignUpUI(); showView('signUpContainer');
   });
 
-  document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
-    if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }
-  });
+  document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => state.isEditMode ? initApp() : showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
 
-  document.getElementById('btnAddPeriod')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(); }});
-  document.getElementById('btnRemovePeriod')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(); }});
+  document.getElementById('btnAddPeriod')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true); }});
+  document.getElementById('btnRemovePeriod')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true); }});
 
   document.getElementById('sheetOverlay')?.addEventListener('click', () => toggleSheet(false));
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
@@ -64,87 +62,76 @@ function initEvents() {
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
 }
 
-// [핵심] 칩 렌더링 및 + 버튼 로직 통합
-function renderTags(type, containerId) {
+// [핵심] 클릭 입력 기능을 포함한 칩 렌더링 함수
+window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
-
     const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
     
-    // 1. 기존 태그들 렌더링
-    let html = arr.map((tag, i) => `
-        <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl text-xs font-bold shadow-sm">
-            <span>${tag}</span>
-            <button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-    `).join('');
+    let html = arr.map((tag, i) => {
+        const color = type === 'sub' ? subPalette[i % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
+        const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
+        
+        // 클릭 시 시간표 칸을 채우는 fillCell 함수 호출
+        return `<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="tag-chip px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-90 transition-all" style="${style}">${tag}</button>`;
+    }).join('');
 
-    // 2. + 버튼 (입력 버튼) 추가
+    // + 버튼 추가
     html += `
         <div id="${type}AddContainer" class="flex items-center">
-            <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 transition-all border-2 border-dashed border-slate-200">
-                <i class="fa-solid fa-plus"></i>
-            </button>
+            <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus"></i></button>
             <div id="${type}InputWrap" class="hidden flex items-center gap-1">
-                <input type="text" id="${type}MiniInput" class="mini-input-chip" placeholder="${type === 'sub' ? '과목명' : '학년-반'}">
-                <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-8 h-8 rounded-lg bg-[#005CC5] text-white text-[10px] font-black">확인</button>
-                <button onclick="window.hideInlineInput('${type}', '${containerId}')" class="text-slate-300 px-1"><i class="fa-solid fa-xmark"></i></button>
+                <input type="text" id="${type}MiniInput" class="mini-input-chip">
+                <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button>
             </div>
-        </div>
-    `;
-
+        </div>`;
     container.innerHTML = html;
 }
 
-// 인라인 입력창 제어 함수들
 window.showInlineInput = (type, containerId) => {
     document.getElementById(`btnShow${type}Input`).classList.add('hidden');
-    const wrap = document.getElementById(`${type}InputWrap`);
-    wrap.classList.remove('hidden');
+    document.getElementById(`${type}InputWrap`).classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput`);
     input.focus();
-    // 엔터키 지원
     input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); };
-};
-
-window.hideInlineInput = (type, containerId) => {
-    renderTags(type, containerId); // 리렌더링하여 초기화
 };
 
 window.submitInlineInput = (type, containerId) => {
     const input = document.getElementById(`${type}MiniInput`);
     const val = input.value.trim();
-    if (!val) return window.hideInlineInput(type, containerId);
-
-    let arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-    if (!arr.includes(val)) {
+    if (val && ! (type === 'sub' ? state.signUp.subs : state.signUp.gcs).includes(val)) {
+        const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
         arr.push(val);
-        // 학급 정렬 로직 (1-1, 1-2, 2-1...)
-        if (type === 'gc') {
-            state.signUp.gcs.sort((a, b) => {
-                const aParts = a.split('-').map(Number);
-                const bParts = b.split('-').map(Number);
-                if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
-                return (aParts[1] || 0) - (bParts[1] || 0);
-            });
-        }
+        // 반 정렬 로직 (1-1, 2-1 순)
+        if (type === 'gc') arr.sort((a,b) => { 
+            const aP = a.split('-').map(Number); const bP = b.split('-').map(Number); 
+            return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); 
+        });
     }
-    renderTags(type, containerId);
+    window.renderTags(type, containerId);
     if(state.isEditMode) renderSetupGrid(true);
 };
 
-window.removeTag = (type, i, containerId) => {
-    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-    arr.splice(i, 1);
-    renderTags(type, containerId);
-    if(state.isEditMode) renderSetupGrid(true);
+// [중요] 시간표 클릭 입력 로직
+window.fillCell = (type, val, color) => {
+  if (!state.activeCell || state.activeCell.type !== type) return;
+  const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+  if (current) {
+    current.innerText = val;
+    if (type === 'sub') {
+      current.style.background = color; current.classList.add('sub-filled');
+      // 과목 입력 후 '반' 칸으로 자동 포커스
+      const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+      if (nextGc) nextGc.click();
+    } else {
+      current.style.color = color; current.classList.add('gc-filled');
+    }
+  }
 };
 
-// 시간표 그리드 렌더링 (수정창 모드에서도 칩 정렬 반영)
 function renderSetupGrid(keepValues = false) {
   const body = document.getElementById('setupTableBody');
   if (!body) return;
-
   const saved = [];
   if(keepValues) {
     document.querySelectorAll('.setup-in').forEach(btn => {
@@ -153,19 +140,13 @@ function renderSetupGrid(keepValues = false) {
         }
     });
   }
-
   body.innerHTML = '';
   for (let p = 1; p <= state.maxPeriods; p++) {
     const row = document.createElement('tr');
     row.innerHTML = `<td class="header-cell text-center font-bold text-slate-400 text-[11px]">${p}</td>` + 
-      ['월','화','수','목','금'].map(d => `
-      <td class="p-1">
-        <button class="setup-in sub-cell" data-day="${d}" data-p="${p}">과목</button>
-        <button class="setup-in gc-cell mt-1" data-day="${d}" data-p="${p}">반</button>
-      </td>`).join('');
+      ['월','화','수','목','금'].map(d => `<td><button class="setup-in sub-cell" data-day="${d}" data-p="${p}">과목</button><button class="setup-in gc-cell mt-1" data-day="${d}" data-p="${p}">반</button></td>`).join('');
     body.appendChild(row);
   }
-
   saved.forEach(s => {
     const target = document.querySelector(`.${s.type}-cell[data-day="${s.d}"][data-p="${s.p}"]`);
     if(target) {
@@ -174,66 +155,26 @@ function renderSetupGrid(keepValues = false) {
         else { target.style.color = s.color; target.classList.add('gc-filled'); }
     }
   });
+  
+  // 하단 퀵 버튼 영역 렌더링
+  window.renderTags('sub', 'quickSubSection'); 
+  window.renderTags('gc', 'quickGcSection');
 
-  // 하단 퀵 버튼들도 동일한 로직으로 정렬되어 노출
-  const subSec = document.getElementById('quickSubSection');
-  const gcSec = document.getElementById('quickGcSection');
-  if (subSec) renderTags('sub', 'quickSubSection');
-  if (gcSec) renderTags('gc', 'quickGcSection');
-
-  document.querySelectorAll('.setup-in').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.setup-in').forEach(b => b.classList.remove('active-cell'));
-      btn.classList.add('active-cell');
-      state.activeCell = { type: btn.classList.contains('sub-cell') ? 'sub' : 'gc', day: btn.dataset.day, p: btn.dataset.p };
-    });
-  });
+  document.querySelectorAll('.setup-in').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.setup-in').forEach(b => b.classList.remove('active-cell'));
+    btn.classList.add('active-cell');
+    state.activeCell = { type: btn.classList.contains('sub-cell') ? 'sub' : 'gc', day: btn.dataset.day, p: btn.dataset.p };
+  }));
 }
 
 // --- 유틸리티 및 데이터 통신 ---
-function toggleSettings(open) {
-    const sheet = document.getElementById('settingsSheet');
-    const overlay = document.getElementById('settingsOverlay');
-    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
+async function handleLogin() {
+  const n = document.getElementById('loginName')?.value.trim();
+  const p = document.getElementById('loginPin')?.value.trim();
+  const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
+  if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
+  else alert('로그인 정보를 확인해주세요.');
 }
-
-async function openEditTimetable() {
-    toggleSettings(false);
-    state.isEditMode = true;
-    state.signUp.step = 4;
-    showView('loadingView');
-    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
-    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
-        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
-        if (aP[0] !== bP[0]) return aP[0] - bP[0]; return (aP[1]||0) - (bP[1]||0);
-    });
-    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-    showView('signUpContainer');
-    updateSignUpUI();
-    current?.forEach(item => {
-        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
-        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
-    });
-}
-
-window.fillCell = (type, val, color) => {
-  if (!state.activeCell || state.activeCell.type !== type) return;
-  const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
-  if (current) {
-    current.innerText = val;
-    if (type === 'sub') {
-      current.style.background = color; current.classList.add('sub-filled');
-      const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
-      if (nextGc) nextGc.click();
-    } else {
-      current.style.color = color; current.classList.add('gc-filled');
-    }
-  }
-};
 
 async function handleNextButton() {
   const step = state.signUp.step;
@@ -246,9 +187,68 @@ async function handleNextButton() {
     showView('signUpContainer');
     if (data) return alert('중복된 이름');
     state.signUp.step++; updateSignUpUI();
-  } 
-  else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
+  } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
   else handleFinalSignUpSubmit();
+}
+
+function updateSignUpUI() {
+  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
+  const progW = document.getElementById('progressWrapper');
+  const setupT = document.getElementById('setupTitle');
+  const nextB = document.getElementById('btnNextStep');
+  if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
+  else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
+  
+  if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
+  else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
+  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
+}
+
+async function openEditTimetable() {
+    toggleSettings(false); state.isEditMode = true; state.signUp.step = 4;
+    showView('loadingView');
+    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
+    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a,b) => { const aP = a.split('-').map(Number); const bP = b.split('-').map(Number); return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); });
+    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
+    showView('signUpContainer'); updateSignUpUI();
+    current?.forEach(item => {
+        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
+        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
+    });
+}
+
+async function fetchTimetable() {
+  const dateStr = state.activeDate.toISOString().split('T')[0];
+  const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
+  const list = document.getElementById('timetableList');
+  if (!list) return;
+  list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
+  const [basic, records] = await Promise.all([
+    supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName).order('period'),
+    supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
+  ]);
+  list.innerHTML = basic.data?.length ? '' : `<div class="py-20 text-center text-slate-400 font-bold">수업이 없습니다.</div>`;
+  for (const item of basic.data || []) {
+    const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
+    const today = records.data?.find(r => r.period == item.period);
+    const card = document.createElement('div');
+    card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
+    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase tracking-tighter">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
+    card.addEventListener('click', () => {
+      state.selectedItem = item;
+      document.getElementById('sheetBadge').innerText = item.grade_class;
+      document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
+      document.getElementById('prevProgressText').innerText = prev?.content || '첫 기록';
+      document.getElementById('progContent').value = today ? today.content : '';
+      document.getElementById('progNote').value = today ? today.note : '';
+      toggleSheet(true);
+    });
+    list.appendChild(card);
+  }
 }
 
 async function handleFinalSignUpSubmit() {
@@ -271,61 +271,11 @@ async function handleFinalSignUpSubmit() {
   } catch (err) { alert(err.message); showView('signUpContainer'); }
 }
 
-function updateSignUpUI() {
-  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
-  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
-  const progW = document.getElementById('progressWrapper');
-  const setupT = document.getElementById('setupTitle');
-  const nextB = document.getElementById('btnNextStep');
-  if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
-  else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
-  
-  if (state.signUp.step === 2) renderTags('sub', 'subTagContainer');
-  else if (state.signUp.step === 3) renderTags('gc', 'gcTagContainer');
-  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
-}
-
-function validateStep(step) {
-  if (step === 2 && !state.signUp.subs.length) return false;
-  if (step === 3 && !state.signUp.gcs.length) return false;
-  return true;
-}
-
-async function handleLogin() {
-  const n = document.getElementById('loginName')?.value.trim();
-  const p = document.getElementById('loginPin')?.value.trim();
-  const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
-  if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-}
-
-async function fetchTimetable() {
-  const dateStr = state.activeDate.toISOString().split('T')[0];
-  const dayName = ['일', '월', '화', '수', '목', '금', '토'][state.activeDate.getDay()];
-  const list = document.getElementById('timetableList');
-  if (!list) return;
-  list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
-  const [basic, records] = await Promise.all([
-    supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName).order('period'),
-    supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
-  ]);
-  list.innerHTML = basic.data?.length ? '' : `<div class="py-20 text-center text-slate-400 font-bold">수업이 없습니다.</div>`;
-  for (const item of basic.data || []) {
-    const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
-    const today = records.data?.find(r => r.period == item.period);
-    const card = document.createElement('div');
-    card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
-    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
-    card.addEventListener('click', () => {
-      state.selectedItem = item;
-      document.getElementById('sheetBadge').innerText = item.grade_class;
-      document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
-      document.getElementById('prevProgressText').innerText = prev?.content || '첫 기록';
-      document.getElementById('progContent').value = today ? today.content : '';
-      document.getElementById('progNote').value = today ? today.note : '';
-      toggleSheet(true);
-    });
-    list.appendChild(card);
-  }
+function toggleSettings(open) {
+    const sheet = document.getElementById('settingsSheet');
+    const overlay = document.getElementById('settingsOverlay');
+    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
 }
 
 function toggleSheet(o) {
@@ -355,4 +305,10 @@ function updateDateUI() {
 function moveDate(offset) {
   state.activeDate.setDate(state.activeDate.getDate() + offset);
   updateDateUI(); fetchTimetable();
+}
+
+function validateStep(step) {
+  if (step === 2 && !state.signUp.subs.length) return false;
+  if (step === 3 && !state.signUp.gcs.length) return false;
+  return true;
 }
