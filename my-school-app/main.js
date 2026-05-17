@@ -11,7 +11,8 @@ let state = {
   activeCell: null, 
   maxPeriods: 7, 
   isSheetOpen: false,
-  isEditMode: false
+  isEditMode: false,
+  isTagEditMode: false // 칩 편집 모드 여부 추가
 };
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
@@ -30,6 +31,7 @@ function showView(id) {
 
 function initApp() {
   state.isEditMode = false;
+  state.isTagEditMode = false;
   showView('mainView');
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
@@ -62,7 +64,21 @@ function initEvents() {
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
 }
 
-// [핵심] 클릭 입력 기능을 포함한 칩 렌더링 함수
+// 편집 모드 토글 함수
+window.toggleTagEditMode = () => {
+    state.isTagEditMode = !state.isTagEditMode;
+    const btnText = state.isTagEditMode ? "완료" : "편집";
+    ['btnEditTagsStep2', 'btnEditTagsStep3', 'btnEditTagsStep4'].forEach(id => {
+        const btn = document.getElementById(id);
+        if(btn) btn.innerText = btnText;
+    });
+    
+    // 현재 화면 다시 그리기
+    if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
+    else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
+    else if (state.signUp.step === 4) renderSetupGrid(true);
+};
+
 window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -72,55 +88,66 @@ window.renderTags = (type, containerId) => {
         const color = type === 'sub' ? subPalette[i % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
         
-        // 클릭 시 시간표 칸을 채우는 fillCell 함수 호출
-        return `<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="tag-chip px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-90 transition-all" style="${style}">${tag}</button>`;
+        return `
+            <div class="tag-chip">
+                ${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm active:scale-75"><i class="fa-solid fa-minus"></i></button>` : ''}
+                <button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button>
+            </div>`;
     }).join('');
 
-    // + 버튼 추가
-    html += `
-        <div id="${type}AddContainer" class="flex items-center">
-            <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus"></i></button>
-            <div id="${type}InputWrap" class="hidden flex items-center gap-1">
-                <input type="text" id="${type}MiniInput" class="mini-input-chip">
-                <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button>
-            </div>
-        </div>`;
+    // 편집 모드일 때만 + 버튼 노출
+    if (state.isTagEditMode) {
+        html += `
+            <div id="${type}AddContainer" class="flex items-center">
+                <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus"></i></button>
+                <div id="${type}InputWrap" class="hidden flex items-center gap-1">
+                    <input type="text" id="${type}MiniInput" class="mini-input-chip" placeholder="입력">
+                    <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-8 h-8 rounded-lg bg-[#005CC5] text-white text-[10px] font-black">확인</button>
+                </div>
+            </div>`;
+    }
     container.innerHTML = html;
 }
 
 window.showInlineInput = (type, containerId) => {
-    document.getElementById(`btnShow${type}Input`).classList.add('hidden');
-    document.getElementById(`${type}InputWrap`).classList.remove('hidden');
+    const btn = document.getElementById(`btnShow${type}Input`);
+    const wrap = document.getElementById(`${type}InputWrap`);
+    if(btn) btn.classList.add('hidden');
+    if(wrap) wrap.classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput`);
-    input.focus();
-    input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); };
+    if(input) {
+        input.focus();
+        input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); };
+    }
 };
 
 window.submitInlineInput = (type, containerId) => {
     const input = document.getElementById(`${type}MiniInput`);
-    const val = input.value.trim();
+    const val = input?.value.trim();
     if (val && ! (type === 'sub' ? state.signUp.subs : state.signUp.gcs).includes(val)) {
         const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
         arr.push(val);
-        // 반 정렬 로직 (1-1, 2-1 순)
-        if (type === 'gc') arr.sort((a,b) => { 
-            const aP = a.split('-').map(Number); const bP = b.split('-').map(Number); 
-            return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); 
-        });
+        if (type === 'gc') arr.sort((a,b) => { const aP = a.split('-').map(Number); const bP = b.split('-').map(Number); return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); });
     }
     window.renderTags(type, containerId);
     if(state.isEditMode) renderSetupGrid(true);
 };
 
-// [중요] 시간표 클릭 입력 로직
+window.removeTag = (type, i, containerId) => {
+    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
+    arr.splice(i, 1);
+    window.renderTags(type, containerId);
+    if(state.isEditMode) renderSetupGrid(true);
+};
+
 window.fillCell = (type, val, color) => {
+  if (state.isTagEditMode) return; // 편집 모드일 땐 입력 금지
   if (!state.activeCell || state.activeCell.type !== type) return;
   const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
   if (current) {
     current.innerText = val;
     if (type === 'sub') {
       current.style.background = color; current.classList.add('sub-filled');
-      // 과목 입력 후 '반' 칸으로 자동 포커스
       const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
       if (nextGc) nextGc.click();
     } else {
@@ -155,11 +182,8 @@ function renderSetupGrid(keepValues = false) {
         else { target.style.color = s.color; target.classList.add('gc-filled'); }
     }
   });
-  
-  // 하단 퀵 버튼 영역 렌더링
   window.renderTags('sub', 'quickSubSection'); 
   window.renderTags('gc', 'quickGcSection');
-
   document.querySelectorAll('.setup-in').forEach(btn => btn.addEventListener('click', () => {
     document.querySelectorAll('.setup-in').forEach(b => b.classList.remove('active-cell'));
     btn.classList.add('active-cell');
@@ -167,13 +191,11 @@ function renderSetupGrid(keepValues = false) {
   }));
 }
 
-// --- 유틸리티 및 데이터 통신 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-  else alert('로그인 정보를 확인해주세요.');
 }
 
 async function handleNextButton() {
@@ -197,6 +219,11 @@ function updateSignUpUI() {
   const progW = document.getElementById('progressWrapper');
   const setupT = document.getElementById('setupTitle');
   const nextB = document.getElementById('btnNextStep');
+  const backB = document.getElementById('btnSignUpBack');
+  
+  // 수정 모드일 때 뒤로가기 숨김
+  if(backB) backB.style.display = state.isEditMode ? 'none' : 'flex';
+
   if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
   else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
   
@@ -206,7 +233,7 @@ function updateSignUpUI() {
 }
 
 async function openEditTimetable() {
-    toggleSettings(false); state.isEditMode = true; state.signUp.step = 4;
+    toggleSettings(false); state.isEditMode = true; state.isTagEditMode = false; state.signUp.step = 4;
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
@@ -237,7 +264,7 @@ async function fetchTimetable() {
     const today = records.data?.find(r => r.period == item.period);
     const card = document.createElement('div');
     card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
-    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase tracking-tighter">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
+    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
     card.addEventListener('click', () => {
       state.selectedItem = item;
       document.getElementById('sheetBadge').innerText = item.grade_class;
