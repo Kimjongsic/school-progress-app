@@ -46,7 +46,6 @@ async function initApp() {
         return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
     });
   }
-
   updateDateUI();
   fetchTimetable();
 }
@@ -89,8 +88,7 @@ function initEvents() {
   
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
     state.activeDate = new Date(e.target.value);
-    updateDateUI();
-    fetchTimetable();
+    updateDateUI(); fetchTimetable();
   });
 }
 
@@ -206,7 +204,6 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// --- [개선] 대시보드 정렬 및 LAST 색상/두께 통일 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -224,7 +221,6 @@ async function fetchTimetable() {
   const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
-    
     const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
     const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
 
@@ -243,17 +239,16 @@ async function fetchTimetable() {
         </div>
         <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
           <div class="flex items-center gap-3">
-            <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest">LAST</span>
+            <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
             <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase">Today</span>
+            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase leading-none">Today</span>
             <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic">입력 전입니다</span>'}</p>
           </div>
         </div>
       </div>`;
   }));
-
   list.innerHTML = dashboardHTML.join('');
 }
 
@@ -261,7 +256,6 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
   const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
-  
   const tagHtml = `
     <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
     <span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
@@ -274,7 +268,6 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   toggleSheet(true);
 };
 
-// --- 데이터 저장 및 가입/수정 공통 로직 ---
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
@@ -292,6 +285,7 @@ async function saveProgress() {
   finally { showView('mainView'); }
 }
 
+// --- 공통 로직 및 유틸리티 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
@@ -343,11 +337,10 @@ async function openEditTimetable() {
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
     state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-    showView('signUpContainer'); 
-    updateSignUpUI();
+    showView('signUpContainer'); updateSignUpUI();
     
-    // [수정 1] 수정창 헤더에 선생님 이름 표시
-    const editTeacher = document.getElementById('editViewTeacherName');
+    // 수정창 전용 헤더 업데이트
+    const editTeacher = document.getElementById('editTeacherName');
     if(editTeacher) editTeacher.innerText = state.user.name;
 
     current?.forEach(item => {
@@ -363,18 +356,19 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   const backB = document.getElementById('btnSignUpBack');
   const nextB = document.getElementById('btnNextStep');
-  const setupT = document.getElementById('setupTitle');
+  const progW = document.getElementById('progressWrapper');
+  const editH = document.getElementById('editHeaderTitle');
 
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
-      document.getElementById('progressWrapper').classList.add('hidden');
-      setupT.innerText = "전체 시간표";
+      if(progW) progW.classList.add('hidden');
+      if(editH) editH.classList.remove('hidden');
       nextB.innerText = "수정 완료";
   } else {
       if(backB) backB.style.display = 'flex';
-      document.getElementById('progressWrapper').classList.remove('hidden');
+      if(progW) progW.classList.remove('hidden');
+      if(editH) editH.classList.add('hidden');
       document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
-      setupT.innerText = "시간표 설정";
       nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
   }
   if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');

@@ -62,14 +62,20 @@
     </section>
 
     <section id="signUpContainer" class="view-transition hidden fixed inset-0 z-[100] bg-white flex flex-col">
-      <header class="p-6 flex justify-between items-center">
+      <header id="signUpHeader" class="p-6 flex justify-between items-center bg-white">
         <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 active:bg-slate-200 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
-        <div class="flex-1 px-4 text-center">
+        
+        <div id="headerCenter" class="flex-1 px-4">
           <div id="progressWrapper" class="h-1.5 w-full bg-slate-100 rounded-full">
             <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div>
           </div>
+          <div id="editHeaderTitle" class="hidden text-left">
+            <p class="teacher-label !mb-0.5"><span id="editTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
+            <h2 class="text-2xl font-black text-slate-900 tracking-tight leading-none">전체 시간표</h2>
+          </div>
         </div>
-        <button id="btnSignUpClose" class="w-10 h-10 flex items-center justify-center text-slate-300 text-xl active:scale-90"><i class="fa-solid fa-xmark"></i></button>
+
+        <button id="btnSignUpClose" class="w-10 h-10 flex items-center justify-center text-slate-300 text-2xl active:scale-90"><i class="fa-solid fa-xmark"></i></button>
       </header>
 
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
@@ -93,12 +99,7 @@
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
         
-        <div id="step4" class="signUpStep hidden">
-          <div class="mb-8">
-            <p class="teacher-label"><span id="editViewTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
-            <h2 id="setupTitle" class="text-2xl font-black text-slate-900 tracking-tight">전체 시간표</h2>
-          </div>
-
+        <div id="step4" class="signUpStep hidden pt-2">
           <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4">
             <div class="flex justify-between items-center px-1">
                 <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
@@ -178,17 +179,14 @@
               <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
             </div>
           </div>
-          
           <div>
             <label class="text-[10px] font-black text-[#005CC5] mb-2 block uppercase ml-1 tracking-wider">TODAY</label>
             <input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none focus:ring-2 focus:ring-[#005CC5]/20">
           </div>
-          
           <div>
             <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">MEMO</label>
             <textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
           </div>
-
           <div class="flex justify-center pt-2">
             <button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button>
           </div>
