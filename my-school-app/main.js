@@ -45,6 +45,8 @@ async function initApp() {
         const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
         return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
     });
+    // 최대 교시 동적 동기화
+    state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI();
   fetchTimetable();
@@ -105,7 +107,7 @@ window.renderTags = (type, containerId) => {
         return `<div class="tag-chip">${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
     if (state.isTagEditMode) {
-        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
+        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
@@ -244,7 +246,19 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
-// [신규] 수업 이동 시 중복 체크 로직
+// --- [개선] 수업 이동 시트 교시 제한 로직 ---
+window.openMoveSheet = (item) => {
+    state.selectedMoveItem = item;
+    const pSelect = document.getElementById('moveTargetPeriod');
+    
+    // [중요] 1교시부터 state.maxPeriods까지만 선택지로 생성
+    pSelect.innerHTML = Array.from({length: state.maxPeriods}, (_, i) => `<option value="${i+1}">${i+1}교시</option>`).join('');
+    
+    pSelect.value = item.period;
+    document.getElementById('moveTargetDate').value = state.activeDate.toISOString().split('T')[0];
+    toggleMoveSheet(true);
+};
+
 async function handleConfirmMove() {
     const targetDate = document.getElementById('moveTargetDate').value;
     const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
@@ -253,21 +267,17 @@ async function handleConfirmMove() {
 
     showView('loadingView');
     try {
-        // [1] 중복 체크 로직: 대상 날짜의 기본 시간표와 변경 사항을 모두 확인
         const targetDayName = ['일','월','화','수','목','금','토'][new Date(targetDate).getDay()];
         const [targetBasic, targetChanges] = await Promise.all([
             supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', targetDayName).eq('period', targetPeriod).maybeSingle(),
             supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', targetDate).eq('period', targetPeriod)
         ]);
 
-        // 타겟 위치에 수업이 있는지 판단
         let isOccupied = false;
         if (targetBasic.data) {
-            // 기본 수업이 있는데, '취소'된 기록이 없는 경우
             const isCancelled = targetChanges.data?.some(c => c.change_type === 'cancelled');
             if (!isCancelled) isOccupied = true;
         }
-        // 기본 수업과 별개로 '추가'된 수업이 있는 경우
         if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
 
         if (isOccupied) {
@@ -275,7 +285,6 @@ async function handleConfirmMove() {
             showView('mainView'); return;
         }
 
-        // [2] 이동 실행
         await supabase.from('lesson_changes').insert([
             { user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled' },
             { user_name: state.user.name, date: targetDate, period: targetPeriod, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added' }
@@ -286,15 +295,6 @@ async function handleConfirmMove() {
     } catch (err) { alert('처리 중 오류 발생'); }
     finally { showView('mainView'); }
 }
-
-window.openMoveSheet = (item) => {
-    state.selectedMoveItem = item;
-    const pSelect = document.getElementById('moveTargetPeriod');
-    pSelect.innerHTML = Array.from({length:15}, (_, i) => `<option value="${i+1}">${i+1}교시</option>`).join('');
-    pSelect.value = item.period;
-    document.getElementById('moveTargetDate').value = state.activeDate.toISOString().split('T')[0];
-    toggleMoveSheet(true);
-};
 
 function toggleMoveSheet(open) {
     const s = document.getElementById('moveSheet');
