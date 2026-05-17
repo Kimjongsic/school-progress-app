@@ -16,7 +16,7 @@ let state = {
   selectedMoveItem: null
 };
 
-let deferredPrompt; // PWA 설치 프롬프트
+let deferredPrompt; 
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
@@ -52,7 +52,6 @@ async function initApp() {
   updateDateUI();
   fetchTimetable();
 
-  // iOS 인앱 체크하여 설치 버튼 노출
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   if (isIOS && !isStandalone) {
@@ -84,7 +83,6 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
 
-  // [PWA] 홈 화면에 추가 버튼 로직
   document.getElementById('btnInstallPWA')?.addEventListener('click', async () => {
     toggleSettings(false);
     if (deferredPrompt) {
@@ -285,24 +283,18 @@ async function handleConfirmMove() {
             supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', targetDayName).eq('period', targetPeriod).maybeSingle(),
             supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', targetDate).eq('period', targetPeriod)
         ]);
-
         let isOccupied = false;
         if (targetBasic.data) {
             const isCancelled = targetChanges.data?.some(c => c.change_type === 'cancelled');
             if (!isCancelled) isOccupied = true;
         }
         if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
-
-        if (isOccupied) {
-            alert('해당 시간대에 이미 수업이 있습니다.');
-            showView('mainView'); return;
-        }
+        if (isOccupied) { alert('해당 시간대에 이미 수업이 있습니다.'); showView('mainView'); return; }
 
         await supabase.from('lesson_changes').insert([
             { user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled' },
             { user_name: state.user.name, date: targetDate, period: targetPeriod, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added' }
         ]);
-
         alert('수업 이동 완료');
         toggleMoveSheet(false); fetchTimetable();
     } catch (err) { alert('오류 발생'); }
@@ -347,7 +339,7 @@ async function saveProgress() {
     const { error } = await supabase.from('lesson_records').upsert({ user_name: state.user.name, date: dateStr, period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-' }, { onConflict: 'user_name, date, period, grade_class, subject' });
     if (error) throw error;
     toggleSheet(false); fetchTimetable();
-  } catch (err) { alert('오류'); } 
+  } catch (err) { alert('저장 실패'); } 
   finally { showView('mainView'); }
 }
 
