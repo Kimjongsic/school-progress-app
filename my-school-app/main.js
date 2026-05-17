@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 1. Supabase 설정 (정보 입력 필수)
+// 1. Supabase 연동 설정 (본인의 정보로 변경 필수)
 const supabaseUrl = 'https://gckplcpwrvabhqqohuib.supabase.co'
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja3BsY3B3cnZhYmhxcW9odWliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDI3NTYsImV4cCI6MjA5NDQ3ODc1Nn0.rg9p24pmgeAIe6EcNZjIFEePXtpesnOnOZRlQKyUcuU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// --- 애플리케이션 상태 ---
+// --- 애플리케이션 상태 관리 ---
 let state = {
   user: JSON.parse(localStorage.getItem('cf_user')) || null,
   activeDate: new Date(),
@@ -26,18 +26,21 @@ window.onload = () => {
 
 function initApp() {
   showView('mainView');
-  document.getElementById('userNameDisplay').innerText = state.user.name;
+  const userDisplay = document.getElementById('userNameDisplay');
+  if (userDisplay) userDisplay.innerText = state.user.name;
   updateDateUI();
   fetchTimetable();
 }
 
 function showView(id) {
   document.querySelectorAll('section, main, #loadingView').forEach(v => v.classList.add('hidden'));
-  document.getElementById(id)?.classList.remove('hidden');
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
 }
 
+// --- 이벤트 리스너 (빌드 오류 해결 포인트) ---
 function initEvents() {
-  // 로그인 & 가입 전환
+  // 로그인 및 가입 전환
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
     state.signUp = { step: 1, subs: [], gcs: [] };
@@ -45,7 +48,7 @@ function initEvents() {
     showView('signUpContainer');
   });
 
-  // 회원가입 단계 이동
+  // 회원가입 단계 이동 및 뒤로 가기
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
     if (state.signUp.step > 1) {
       state.signUp.step--;
@@ -65,31 +68,39 @@ function initEvents() {
     }
   });
 
-  // 과목 태그 입력 (엔터 & 플러스 버튼)
-  const subIn = document.getElementById('subInput');
-  subIn?.addEventListener('keypress', (e) => { if(e.key === 'Enter') addTag('sub'); });
+  // 태그 입력 제어
+  document.getElementById('subInput')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') addTag('sub'); });
   document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
-
-  // 학급 태그 입력 (엔터 & 플러스 버튼)
-  const gcIn = document.getElementById('gcInput');
-  gcIn?.addEventListener('keypress', (e) => { if(e.key === 'Enter') addTag('gc'); });
+  document.getElementById('gcInput')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') addTag('gc'); });
   document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
 
-  // 날짜 & 기타 제어
+  // 날짜 및 시트 제어
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
     state.activeDate = new Date(e.target.value);
     updateDateUI();
     fetchTimetable();
   });
-
+  document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
+  document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
+  
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
-  document.querySelectorAll('.btnCloseSheet').forEach(btn => btn.onclick = () => toggleSheet(false));
-  document.getElementById('btnLogout')?.onclick = () => { localStorage.clear(); location.reload(); };
+  document.querySelectorAll('.btnCloseSheet').forEach(btn => {
+    btn.addEventListener('click', () => toggleSheet(false));
+  });
+
+  // 로그아웃 (에러 발생했던 라인 수정 완료)
+  document.getElementById('btnLogout')?.addEventListener('click', () => {
+    localStorage.clear();
+    location.reload();
+  });
 }
 
 // --- 태그 시스템 로직 ---
 function addTag(type) {
-  const input = document.getElementById(type === 'sub' ? 'subInput' : 'gcInput');
+  const inputId = type === 'sub' ? 'subInput' : 'gcInput';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  
   const val = input.value.trim();
   if (!val) return;
 
@@ -103,17 +114,21 @@ function addTag(type) {
 }
 
 function renderTags(type) {
-  const container = document.getElementById(type === 'sub' ? 'subTagContainer' : 'gcTagContainer');
+  const containerId = type === 'sub' ? 'subTagContainer' : 'gcTagContainer';
+  const container = document.getElementById(containerId);
   const targetArr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
   
+  if (!container) return;
+
   container.innerHTML = targetArr.map((tag, idx) => `
-    <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-slate-100">
+    <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
       <span>${tag}</span>
-      <button onclick="removeTag('${type}', ${idx})" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <button onclick="window.removeTag('${type}', ${idx})" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
     </div>
   `).join('');
 }
 
+// 태그 삭제를 전역 함수로 노출
 window.removeTag = (type, idx) => {
   const targetArr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
   targetArr.splice(idx, 1);
@@ -123,19 +138,24 @@ window.removeTag = (type, idx) => {
 // --- 회원가입 UI 및 검증 ---
 function updateSignUpUI() {
   document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
-  document.getElementById(`step${state.signUp.step}`).classList.remove('hidden');
+  const currentStepEl = document.getElementById(`step${state.signUp.step}`);
+  if (currentStepEl) currentStepEl.classList.remove('hidden');
   
-  const progress = (state.signUp.step / 3) * 100;
-  document.getElementById('signUpProgress').style.width = `${progress}%`;
-  document.getElementById('btnNextStep').innerText = state.signUp.step === 3 ? '가입 완료' : '다음으로';
-  document.getElementById('btnSignUpBack').style.visibility = state.signUp.step === 1 ? 'hidden' : 'visible';
+  const progressEl = document.getElementById('signUpProgress');
+  if (progressEl) progressEl.style.width = `${(state.signUp.step / 3) * 100}%`;
+  
+  const nextBtn = document.getElementById('btnNextStep');
+  if (nextBtn) nextBtn.innerText = state.signUp.step === 3 ? '가입 완료' : '다음으로';
+  
+  const backBtn = document.getElementById('btnSignUpBack');
+  if (backBtn) backBtn.style.visibility = state.signUp.step === 1 ? 'hidden' : 'visible';
 }
 
 function validateStep(step) {
   if (step === 1) {
-    const name = document.getElementById('regName').value.trim();
-    const pin = document.getElementById('regPin').value.trim();
-    if (!name || pin.length !== 4) { alert('이름과 4자리 비밀번호를 입력해주세요.'); return false; }
+    const name = document.getElementById('regName')?.value.trim();
+    const pin = document.getElementById('regPin')?.value.trim();
+    if (!name || pin?.length !== 4) { alert('이름과 4자리 비밀번호를 입력해주세요.'); return false; }
   } else if (step === 2 && state.signUp.subs.length === 0) {
     alert('최소 하나의 과목을 등록해주세요.'); return false;
   }
@@ -147,7 +167,8 @@ async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일', '월', '화', '수', '목', '금', '토'][state.activeDate.getDay()];
   const list = document.getElementById('timetableList');
-  
+  if (!list) return;
+
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-circle-notch fa-spin text-2xl text-slate-200"></i></div>`;
 
   const [basic, records] = await Promise.all([
@@ -174,33 +195,41 @@ async function fetchTimetable() {
           <span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span>
         </div>
         <h4 class="text-xl font-black text-slate-900">${item.subject}</h4>
-        <p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">마지막: <span class="text-slate-600">${prev?.content || '-'}</span></p>
+        <p class="text-[11px] font-bold text-slate-400 mt-2">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p>
       </div>
       <div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl">
         <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-plus-circle'}"></i>
       </div>
     `;
-    card.onclick = () => {
+    card.addEventListener('click', () => {
       state.selectedItem = item;
-      document.getElementById('sheetBadge').innerText = item.grade_class;
-      document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
-      document.getElementById('prevProgressText').innerText = prev?.content || '첫 번째 수업 기록입니다.';
-      document.getElementById('progContent').value = today ? today.content : '';
-      document.getElementById('progNote').value = today ? today.note : '';
+      const sheetBadge = document.getElementById('sheetBadge');
+      const sheetTitle = document.getElementById('sheetTitle');
+      const prevText = document.getElementById('prevProgressText');
+      const progIn = document.getElementById('progContent');
+      const noteIn = document.getElementById('progNote');
+      
+      if(sheetBadge) sheetBadge.innerText = item.grade_class;
+      if(sheetTitle) sheetTitle.innerText = `${item.subject} 진도 기록`;
+      if(prevText) prevText.innerText = prev?.content || '첫 번째 수업 기록입니다.';
+      if(progIn) progIn.value = today ? today.content : '';
+      if(noteIn) noteIn.value = today ? today.note : '';
       toggleSheet(true);
-    };
+    });
     list.appendChild(card);
   }
 }
 
 function toggleSheet(open) {
+  const sheet = document.getElementById('inputSheet');
+  if (!sheet) return;
   state.isSheetOpen = open;
-  document.getElementById('inputSheet').style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
 }
 
 async function handleLogin() {
-  const name = document.getElementById('loginName').value.trim();
-  const pin = document.getElementById('loginPin').value.trim();
+  const name = document.getElementById('loginName')?.value.trim();
+  const pin = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', name).eq('pin', pin).maybeSingle();
   if (data) {
     state.user = data;
@@ -210,8 +239,8 @@ async function handleLogin() {
 }
 
 async function handleFinalSignUp() {
-  const name = document.getElementById('regName').value.trim();
-  const pin = document.getElementById('regPin').value.trim();
+  const name = document.getElementById('regName')?.value.trim();
+  const pin = document.getElementById('regPin')?.value.trim();
   showView('loadingView');
   
   const { error } = await supabase.from('profiles').insert({ name, pin });
@@ -222,8 +251,8 @@ async function handleFinalSignUp() {
 }
 
 async function saveProgress() {
-  const content = document.getElementById('progContent').value.trim();
-  const note = document.getElementById('progNote').value.trim();
+  const content = document.getElementById('progContent')?.value.trim();
+  const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
   if (!content) return alert('진도 내용을 입력해 주세요.');
 
@@ -238,6 +267,15 @@ async function saveProgress() {
 }
 
 function updateDateUI() {
-  const options = { month: 'long', day: 'numeric', weekday: 'long' };
-  document.getElementById('currentDateDisplay').innerText = state.activeDate.toLocaleDateString('ko-KR', options);
+  const dateDisplay = document.getElementById('currentDateDisplay');
+  if (dateDisplay) {
+    const options = { month: 'long', day: 'numeric', weekday: 'long' };
+    dateDisplay.innerText = state.activeDate.toLocaleDateString('ko-KR', options);
+  }
+}
+
+function moveDate(offset) {
+  state.activeDate.setDate(state.activeDate.getDate() + offset);
+  updateDateUI();
+  fetchTimetable();
 }
