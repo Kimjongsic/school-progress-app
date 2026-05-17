@@ -43,15 +43,12 @@ async function initApp() {
   const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
   if (current) {
     state.signUp.subs = [...new Set(current.map(i => i.subject))];
-    state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort((a, b) => {
-        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
-        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
-    });
+    state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI();
-  fetchTimetable();
+  updateDateUI(); fetchTimetable();
 
+  // PWA 버튼 노출 체크 (iOS 전용)
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   if (isIOS && !isStandalone) {
@@ -68,7 +65,7 @@ function initEvents() {
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
-    if (state.isEditMode) { if(confirm('저장되지 않았습니다. 취소할까요?')) initApp(); } 
+    if (state.isEditMode) { if(confirm('수정 중인 내용이 취소됩니다.')) initApp(); } 
     else showView('loginView');
   });
 
@@ -83,21 +80,28 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
 
-  document.getElementById('btnInstallPWA')?.addEventListener('click', async () => {
+  // PWA [홈 화면에 추가] 로직
+  const installBtn = document.getElementById('btnInstallPWA');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferredPrompt = e;
+    installBtn?.classList.remove('hidden');
+    console.log('✅ PWA 설치 신호 감지');
+  });
+
+  installBtn?.addEventListener('click', async () => {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') document.getElementById('btnInstallPWA').classList.add('hidden');
+      if (outcome === 'accepted') installBtn.classList.add('hidden');
       deferredPrompt = null;
-    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      document.getElementById('iosInstallGuide').classList.remove('hidden');
+    } else {
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        document.getElementById('iosInstallGuide')?.classList.remove('hidden');
+      } else {
+        alert('이미 설치되어 있거나 브라우저 메뉴의 [홈 화면에 추가]를 사용해 주세요.');
+      }
     }
-  });
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault(); deferredPrompt = e;
-    document.getElementById('btnInstallPWA')?.classList.remove('hidden');
   });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
@@ -131,7 +135,7 @@ window.renderTags = (type, containerId) => {
         return `<div class="tag-chip">${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
     if (state.isTagEditMode) {
-        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
+        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
@@ -151,7 +155,7 @@ window.submitInlineInput = (type, containerId) => {
         const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
         if(!arr.includes(val)) {
             arr.push(val);
-            if (type === 'gc') arr.sort((a,b) => { const aP=a.split('-').map(Number); const bP=b.split('-').map(Number); return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); });
+            if (type === 'gc') arr.sort();
         }
     }
     window.renderTags(type, containerId);
@@ -255,7 +259,7 @@ async function fetchTimetable() {
           </div>
           <button onclick='event.stopPropagation(); window.openMoveSheet(${JSON.stringify(item)})' class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center active:bg-blue-50 active:text-[#005CC5]"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></button>
         </div>
-        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50 text-left" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
           <div class="flex items-center gap-3">
             <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
             <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
@@ -274,7 +278,7 @@ async function handleConfirmMove() {
     const targetDate = document.getElementById('moveTargetDate').value;
     const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
     const originalDate = state.activeDate.toISOString().split('T')[0];
-    if (!targetDate) return alert('날짜를 선택하세요.');
+    if (!targetDate) return alert('이동할 날짜를 선택하세요.');
 
     showView('loadingView');
     try {
@@ -285,18 +289,17 @@ async function handleConfirmMove() {
         ]);
         let isOccupied = false;
         if (targetBasic.data) {
-            const isCancelled = targetChanges.data?.some(c => c.change_type === 'cancelled');
-            if (!isCancelled) isOccupied = true;
+            if (!targetChanges.data?.some(c => c.change_type === 'cancelled')) isOccupied = true;
         }
         if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
-        if (isOccupied) { alert('해당 시간대에 이미 수업이 있습니다.'); showView('mainView'); return; }
+
+        if (isOccupied) { alert('해당 시간대에 이미 수업이 배정되어 있습니다.'); showView('mainView'); return; }
 
         await supabase.from('lesson_changes').insert([
             { user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled' },
             { user_name: state.user.name, date: targetDate, period: targetPeriod, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added' }
         ]);
-        alert('수업 이동 완료');
-        toggleMoveSheet(false); fetchTimetable();
+        alert('수업 이동 완료'); toggleMoveSheet(false); fetchTimetable();
     } catch (err) { alert('오류 발생'); }
     finally { showView('mainView'); }
 }
@@ -348,6 +351,7 @@ async function handleLogin() {
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
+  else alert('정보가 올바르지 않습니다.');
 }
 
 async function handleNextButton() {
@@ -360,7 +364,7 @@ async function handleNextButton() {
     showView('signUpContainer');
     if (data) return alert('이미 사용중인 이름');
     state.signUp.step++; updateSignUpUI();
-  } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
+  } else if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
   else handleFinalSignUpSubmit();
 }
 
@@ -387,7 +391,7 @@ async function handleFinalSignUpSubmit() {
 }
 
 async function openEditTimetable() {
-    toggleSettings(false); state.isEditMode = true; state.isTagEditMode = false; state.signUp.step = 4;
+    toggleSettings(false); state.isEditMode = true; state.signUp.step = 4;
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
@@ -444,4 +448,3 @@ function updateDateUI() {
 }
 
 function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
-function validateStep(step) { if (step === 2 && !state.signUp.subs.length) return false; if (step === 3 && !state.signUp.gcs.length) return false; return true; }
