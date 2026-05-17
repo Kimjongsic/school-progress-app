@@ -14,6 +14,9 @@
     @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     input:focus { border-color: #005CC5; box-shadow: 0 0 0 4px rgba(0, 92, 197, 0.05); outline: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
+    .setup-in { width: 100%; border-radius: 12px; border: 1.5px solid #F1F5F9; padding: 8px 2px; text-align: center; font-size: 11px; font-weight: 800; background: #F8FAFC; cursor: pointer; }
+    .setup-in:focus { background: white; border-color: #005CC5; box-shadow: 0 0 0 2px rgba(0, 92, 197, 0.1); }
+    .setup-in.active-cell { border-color: #005CC5; background: #EBF8FF; }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -45,7 +48,7 @@
         <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400"><i class="fa-solid fa-chevron-left"></i></button>
         <div class="flex-1 px-6">
           <div class="h-1.5 w-full bg-slate-100 rounded-full">
-            <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full" style="width: 33%"></div>
+            <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full" style="width: 25%"></div>
           </div>
         </div>
         <button id="btnSignUpClose" class="text-slate-300 text-xl"><i class="fa-solid fa-xmark"></i></button>
@@ -64,25 +67,47 @@
         <div id="step2" class="signUpStep hidden">
           <h2 class="text-2xl font-black mb-2 text-slate-900">어떤 과목들을<br>가르치시나요?</h2>
           <p class="text-slate-400 mb-8 font-bold text-sm">입력 후 엔터 또는 + 버튼을 눌러주세요.</p>
-          
           <div class="flex gap-2 mb-4">
-            <input type="text" id="subInput" placeholder="과목명 입력 (예: 미적분)" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
-            <button id="btnAddSub" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center text-xl active:scale-90 transition-transform"><i class="fa-solid fa-plus"></i></button>
+            <input type="text" id="subInput" placeholder="과목명 입력" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
+            <button id="btnAddSub" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-plus"></i></button>
           </div>
-          
           <div id="subTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="step3" class="signUpStep hidden">
           <h2 class="text-2xl font-black mb-2 text-slate-900">담당하시는 반을<br>알려주세요.</h2>
           <p class="text-slate-400 mb-8 font-bold text-sm">예: 2-1, 2-6 (입력 후 엔터)</p>
-          
           <div class="flex gap-2 mb-4">
-            <input type="text" id="gcInput" placeholder="학년-반 입력 (예: 2-6)" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
-            <button id="btnAddGc" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center text-xl active:scale-90 transition-transform"><i class="fa-solid fa-plus"></i></button>
+            <input type="text" id="gcInput" placeholder="학년-반 입력" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
+            <button id="btnAddGc" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-plus"></i></button>
           </div>
-          
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div id="step4" class="signUpStep hidden">
+          <h2 class="text-xl font-black mb-2 text-slate-900">일주일 시간표를 완성해주세요</h2>
+          <p class="text-slate-400 mb-4 font-bold text-[11px]">칸을 선택하고 하단의 과목/반을 터치하세요.</p>
+          
+          <div class="bg-blue-50/50 p-3 rounded-2xl border border-blue-100 mb-4">
+            <div id="quickSubSection" class="flex flex-wrap gap-1.5 mb-2"></div>
+            <div id="quickGcSection" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full border-separate border-spacing-1">
+              <thead>
+                <tr>
+                  <th class="w-6"></th>
+                  <th class="text-[10px] font-black text-slate-400 pb-1">월</th>
+                  <th class="text-[10px] font-black text-slate-400 pb-1">화</th>
+                  <th class="text-[10px] font-black text-slate-400 pb-1">수</th>
+                  <th class="text-[10px] font-black text-slate-400 pb-1">목</th>
+                  <th class="text-[10px] font-black text-slate-400 pb-1">금</th>
+                </tr>
+              </thead>
+              <tbody id="setupTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -95,7 +120,7 @@
       <header class="p-8 bg-white flex justify-between items-end">
         <div>
           <h2 id="currentDateDisplay" class="text-2xl font-black text-slate-900">5월 17일 일요일</h2>
-          <p class="text-[#005CC5] font-black text-sm uppercase tracking-widest mt-1"><span id="userNameDisplay">김종식</span> 선생님</p>
+          <p class="text-[#005CC5] font-black text-sm uppercase mt-1"><span id="userNameDisplay">김종식</span> 선생님</p>
         </div>
         <div class="flex gap-2">
           <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 relative">
@@ -105,35 +130,23 @@
           <button id="btnLogout" class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500"><i class="fa-solid fa-power-off"></i></button>
         </div>
       </header>
-
       <div id="timetableList" class="px-8 space-y-4"></div>
     </main>
 
-    <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300 ease-out">
-      <div class="bg-white rounded-t-[48px] shadow-[0_-20px_60px_rgba(0,0,0,0.1)] px-10 pt-4 pb-12">
+    <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300">
+      <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
-        
         <header class="mb-8">
           <span id="sheetBadge" class="text-[10px] font-black bg-blue-50 text-[#005CC5] px-2 py-1 rounded-md mb-2 inline-block">2학년 6반</span>
           <h3 id="sheetTitle" class="text-2xl font-black text-slate-900">수학 진도 기록</h3>
         </header>
-
         <div class="space-y-6">
           <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">지난 수업 내용</p>
-            <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-2">지난 수업 내용</p>
+            <p id="prevProgressText" class="text-slate-700 font-bold text-smLeading-relaxed">-</p>
           </div>
-          
-          <div class="space-y-2">
-            <label class="text-xs font-black text-slate-400 ml-1">오늘 나간 진도</label>
-            <input type="text" id="progContent" placeholder="어디까지 학습했나요?" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-bold">
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-black text-slate-400 ml-1">수업 메모</label>
-            <textarea id="progNote" placeholder="전달사항이나 피드백을 적어주세요" rows="2" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-medium"></textarea>
-          </div>
-
+          <input type="text" id="progContent" placeholder="어디까지 학습했나요?" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-bold">
+          <textarea id="progNote" placeholder="수업 메모 (옵션)" rows="2" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-medium"></textarea>
           <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-2xl shadow-blue-200 mt-4 active:scale-95 transition-transform">기록 저장하기</button>
         </div>
       </div>
