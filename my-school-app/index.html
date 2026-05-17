@@ -47,7 +47,7 @@
     
     <div id="loadingView" class="view-transition hidden fixed inset-0 z-[300] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center text-center">
       <i class="fa-solid fa-spinner fa-spin text-4xl text-[#005CC5]"></i>
-      <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm tracking-tight">잠시만 기다려주세요...</p>
+      <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm tracking-tight">데이터 처리 중...</p>
     </div>
 
     <section id="loginView" class="view-transition hidden fixed inset-0 z-50 bg-white flex flex-col justify-center px-10">
@@ -68,7 +68,7 @@
       <header id="signUpHeader" class="view-header flex justify-between items-end">
         <div id="headerLeftArea" class="flex-1">
             <div id="signupHeaderContent" class="flex items-center gap-4">
-                <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400"><i class="fa-solid fa-chevron-left"></i></button>
+                <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 active:bg-slate-200 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
                 <div class="flex-1 h-1.5 bg-slate-100 rounded-full">
                     <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div>
                 </div>
@@ -103,9 +103,8 @@
           </div>
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
-        
         <div id="step4" class="signUpStep hidden">
-          <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4">
+          <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4 shadow-sm">
             <div class="flex justify-between items-center px-1">
                 <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
                 <button onclick="window.toggleTagEditMode()" class="text-[9px] font-black px-2 py-1 bg-slate-50 text-[#005CC5] rounded-md border border-blue-50" id="btnEditTagsStep4">편집</button>
@@ -150,11 +149,12 @@
             <button id="btnNextDate" class="w-12 h-12 flex items-center justify-center text-slate-400 active:text-slate-900"><i class="fa-solid fa-chevron-right text-xl"></i></button>
         </div>
       </div>
-
       <div id="timetableList" class="px-8 space-y-4"></div>
     </main>
 
+    <div id="sheetOverlay" class="overlay-target"></div>
     <div id="settingsOverlay" class="overlay-target"></div>
+
     <div id="settingsSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300 ease-out">
       <div class="bg-white rounded-t-[40px] shadow-2xl px-8 pt-4 pb-12 text-center">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
@@ -171,7 +171,6 @@
       </div>
     </div>
 
-    <div id="sheetOverlay" class="overlay-target"></div>
     <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300">
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
@@ -182,17 +181,15 @@
         <div class="space-y-6">
           <div>
             <label class="text-[10px] font-black text-amber-500 mb-2 block uppercase ml-1 tracking-wider">LAST</label>
-            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]">
-              <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
-            </div>
+            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]"><p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p></div>
           </div>
           <div>
             <label class="text-[10px] font-black text-[#005CC5] mb-2 block uppercase ml-1 tracking-wider">TODAY</label>
-            <input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none focus:ring-2 focus:ring-[#005CC5]/20">
+            <input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none">
           </div>
           <div>
             <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">MEMO</label>
-            <textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
+            <textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none"></textarea>
           </div>
           <div class="flex justify-center pt-2">
             <button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button>
@@ -218,10 +215,12 @@
               <select id="moveTargetPeriod" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none appearance-none">
                 </select>
             </div>
-            <button id="btnConfirmMove" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-xl active:scale-95 transition-all mt-4">이동 완료</button>
+            <div class="flex justify-center pt-4">
+                <button id="btnConfirmMove" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">변경</button>
+            </div>
           </div>
         </div>
-      </div>
+    </div>
   </div>
 
   <script type="module" src="/main.js"></script>

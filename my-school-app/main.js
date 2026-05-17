@@ -35,7 +35,6 @@ async function initApp() {
   state.isEditMode = false;
   state.isTagEditMode = false;
   showView('mainView');
-  
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
 
@@ -60,9 +59,8 @@ function initEvents() {
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
-    if (state.isEditMode) {
-      if(confirm('수정 중인 내용이 저장되지 않았습니다. 나갈까요?')) initApp();
-    } else { showView('loginView'); }
+    if (state.isEditMode) { if(confirm('저장되지 않았습니다. 취소할까요?')) initApp(); } 
+    else showView('loginView');
   });
 
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
@@ -80,19 +78,12 @@ function initEvents() {
 
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
-  
-  document.getElementById('dateTextGroup')?.addEventListener('click', () => {
-    const picker = document.getElementById('datePicker');
-    if (picker && typeof picker.showPicker === 'function') picker.showPicker();
-  });
-  
+  document.getElementById('dateTextGroup')?.addEventListener('click', () => document.getElementById('datePicker')?.showPicker());
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
-    state.activeDate = new Date(e.target.value);
-    updateDateUI(); fetchTimetable();
+    state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable();
   });
 }
 
-// 편집 모드 토글
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
@@ -108,20 +99,13 @@ window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
     const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-    
     let html = arr.map((tag, i) => {
         const color = type === 'sub' ? subPalette[state.signUp.subs.indexOf(tag) % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
-        return `
-            <div class="tag-chip">
-                ${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}
-                <button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button>
-            </div>`;
+        return `<div class="tag-chip">${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
-
     if (state.isTagEditMode) {
-        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button>
-                 <div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
+        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
@@ -129,8 +113,7 @@ window.renderTags = (type, containerId) => {
 window.showInlineInput = (type, containerId) => {
     const btn = document.getElementById(`btnShow${type}Input`);
     const wrap = document.getElementById(`${type}InputWrap`);
-    if(btn) btn.classList.add('hidden');
-    if(wrap) wrap.classList.remove('hidden');
+    if(btn) btn.classList.add('hidden'); if(wrap) wrap.classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput`);
     if(input) { input.focus(); input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); }; }
 };
@@ -205,7 +188,6 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// --- [핵심] 수업 이동 병합 렌더링 로직 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -219,7 +201,6 @@ async function fetchTimetable() {
     supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', dateStr)
   ]);
 
-  // 스케줄 병합 로직
   let finalSchedule = [];
   if (basic.data) {
     const cancelledPeriods = changes.data?.filter(c => c.change_type === 'cancelled').map(c => c.period) || [];
@@ -246,9 +227,7 @@ async function fetchTimetable() {
             <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
-          <button onclick='event.stopPropagation(); window.openMoveSheet(${JSON.stringify(item)})' class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center active:bg-blue-50 active:text-[#005CC5]">
-            <i class="fa-solid fa-arrow-right-arrow-left text-sm"></i>
-          </button>
+          <button onclick='event.stopPropagation(); window.openMoveSheet(${JSON.stringify(item)})' class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center active:bg-blue-50 active:text-[#005CC5]"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></button>
         </div>
         <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
           <div class="flex items-center gap-3">
@@ -257,7 +236,7 @@ async function fetchTimetable() {
           </div>
           <div class="flex items-center gap-3">
             <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase leading-none">Today</span>
-            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic">입력 전입니다</span>'}</p>
+            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic text-[11px]">입력 전입니다</span>'}</p>
           </div>
         </div>
       </div>`;
@@ -265,7 +244,49 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
-// --- [신규] 수업 이동 제어 로직 ---
+// [신규] 수업 이동 시 중복 체크 로직
+async function handleConfirmMove() {
+    const targetDate = document.getElementById('moveTargetDate').value;
+    const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
+    const originalDate = state.activeDate.toISOString().split('T')[0];
+    if (!targetDate) return alert('날짜를 선택하세요.');
+
+    showView('loadingView');
+    try {
+        // [1] 중복 체크 로직: 대상 날짜의 기본 시간표와 변경 사항을 모두 확인
+        const targetDayName = ['일','월','화','수','목','금','토'][new Date(targetDate).getDay()];
+        const [targetBasic, targetChanges] = await Promise.all([
+            supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', targetDayName).eq('period', targetPeriod).maybeSingle(),
+            supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', targetDate).eq('period', targetPeriod)
+        ]);
+
+        // 타겟 위치에 수업이 있는지 판단
+        let isOccupied = false;
+        if (targetBasic.data) {
+            // 기본 수업이 있는데, '취소'된 기록이 없는 경우
+            const isCancelled = targetChanges.data?.some(c => c.change_type === 'cancelled');
+            if (!isCancelled) isOccupied = true;
+        }
+        // 기본 수업과 별개로 '추가'된 수업이 있는 경우
+        if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
+
+        if (isOccupied) {
+            alert('해당 날짜 및 교시에는 이미 다른 수업이 배정되어 있어 옮길 수 없습니다.');
+            showView('mainView'); return;
+        }
+
+        // [2] 이동 실행
+        await supabase.from('lesson_changes').insert([
+            { user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled' },
+            { user_name: state.user.name, date: targetDate, period: targetPeriod, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added' }
+        ]);
+
+        alert('수업 이동이 완료되었습니다.');
+        toggleMoveSheet(false); fetchTimetable();
+    } catch (err) { alert('처리 중 오류 발생'); }
+    finally { showView('mainView'); }
+}
+
 window.openMoveSheet = (item) => {
     state.selectedMoveItem = item;
     const pSelect = document.getElementById('moveTargetPeriod');
@@ -282,31 +303,7 @@ function toggleMoveSheet(open) {
     if (o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
 }
 
-async function handleConfirmMove() {
-    const targetDate = document.getElementById('moveTargetDate').value;
-    const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
-    const originalDate = state.activeDate.toISOString().split('T')[0];
-    if (!targetDate) return alert('날짜를 선택하세요.');
-
-    showView('loadingView');
-    try {
-        // 1. 기존 수업 취소 처리
-        await supabase.from('lesson_changes').insert({
-            user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period,
-            subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled'
-        });
-        // 2. 대상 날짜에 보강 추가 처리
-        await supabase.from('lesson_changes').insert({
-            user_name: state.user.name, date: targetDate, period: targetPeriod,
-            subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added'
-        });
-        alert('수업이 성공적으로 이동되었습니다.');
-        toggleMoveSheet(false); fetchTimetable();
-    } catch (err) { alert('처리 중 오류 발생'); }
-    finally { showView('mainView'); }
-}
-
-// --- 나머지 유틸리티 ---
+// --- 공통 유틸리티 ---
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
@@ -326,10 +323,7 @@ async function saveProgress() {
   if (!content) return alert('진도 내용을 입력해 주세요.');
   showView('loadingView');
   try {
-    const { error } = await supabase.from('lesson_records').upsert({
-      user_name: state.user.name, date: dateStr, period: state.selectedItem.period,
-      grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-'
-    }, { onConflict: 'user_name, date, period, grade_class, subject' });
+    const { error } = await supabase.from('lesson_records').upsert({ user_name: state.user.name, date: dateStr, period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-' }, { onConflict: 'user_name, date, period, grade_class, subject' });
     if (error) throw error;
     toggleSheet(false); fetchTimetable();
   } catch (err) { alert('저장 실패: ' + err.message); } 
@@ -405,14 +399,10 @@ function updateSignUpUI() {
   const signupH = document.getElementById('signupHeaderContent');
   const editH = document.getElementById('editHeaderContent');
   if(state.isEditMode) {
-      if(backB) backB.style.display = 'none';
-      if(signupH) signupH.classList.add('hidden');
-      if(editH) editH.classList.remove('hidden');
+      if(backB) backB.style.display = 'none'; if(signupH) signupH.classList.add('hidden'); if(editH) editH.classList.remove('hidden');
       nextB.innerText = "수정 완료";
   } else {
-      if(backB) backB.style.display = 'flex';
-      if(signupH) signupH.classList.remove('hidden');
-      if(editH) editH.classList.add('hidden');
+      if(backB) backB.style.display = 'flex'; if(signupH) signupH.classList.remove('hidden'); if(editH) editH.classList.add('hidden');
       document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
       nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
   }
@@ -428,11 +418,11 @@ function toggleSettings(open) {
   if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
 }
 
-function toggleSheet(o) {
+function toggleSheet(open) {
   const s = document.getElementById('inputSheet');
-  const ov = document.getElementById('sheetOverlay');
-  if (s) s.style.transform = o ? 'translateY(0)' : 'translateY(100%)';
-  if (ov) o ? ov.classList.add('overlay-show') : ov.classList.remove('overlay-show');
+  const o = document.getElementById('sheetOverlay');
+  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
 }
 
 function updateDateUI() {
