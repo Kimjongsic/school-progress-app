@@ -1,0 +1,16 @@
+{
+  "name": "Class Flow Pro",
+  "short_name": "ClassFlow",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#005CC5",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3524/3524335.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

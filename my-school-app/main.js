@@ -16,6 +16,8 @@ let state = {
   selectedMoveItem: null
 };
 
+let deferredPrompt; // PWA 설치 프롬프트
+
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
@@ -49,6 +51,13 @@ async function initApp() {
   }
   updateDateUI();
   fetchTimetable();
+
+  // iOS 인앱 체크하여 설치 버튼 노출
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone) {
+      document.getElementById('btnInstallPWA')?.classList.remove('hidden');
+  }
 }
 
 function initEvents() {
@@ -73,10 +82,25 @@ function initEvents() {
   document.getElementById('btnSettings')?.addEventListener('click', () => toggleSettings(true));
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
-  
-  // 문의하기 이벤트
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
-  document.getElementById('btnCloseInquiry')?.addEventListener('click', () => document.getElementById('inquiryPopup').classList.add('hidden'));
+
+  // [PWA] 홈 화면에 추가 버튼 로직
+  document.getElementById('btnInstallPWA')?.addEventListener('click', async () => {
+    toggleSettings(false);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') document.getElementById('btnInstallPWA').classList.add('hidden');
+      deferredPrompt = null;
+    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      document.getElementById('iosInstallGuide').classList.remove('hidden');
+    }
+  });
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferredPrompt = e;
+    document.getElementById('btnInstallPWA')?.classList.remove('hidden');
+  });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnConfirmMove')?.addEventListener('click', handleConfirmMove);
@@ -215,7 +239,7 @@ async function fetchTimetable() {
     finalSchedule = [...finalSchedule, ...addedLessons].sort((a, b) => a.period - b.period);
   }
 
-  if (finalSchedule.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
+  if (finalSchedule.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; return; }
 
   const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
@@ -317,13 +341,13 @@ async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
-  if (!content) return alert('진도 내용을 입력해 주세요.');
+  if (!content) return alert('내용을 입력하세요.');
   showView('loadingView');
   try {
     const { error } = await supabase.from('lesson_records').upsert({ user_name: state.user.name, date: dateStr, period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-' }, { onConflict: 'user_name, date, period, grade_class, subject' });
     if (error) throw error;
     toggleSheet(false); fetchTimetable();
-  } catch (err) { alert('저장 실패: ' + err.message); } 
+  } catch (err) { alert('오류'); } 
   finally { showView('mainView'); }
 }
 
@@ -342,7 +366,7 @@ async function handleNextButton() {
     showView('loadingView');
     const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
     showView('signUpContainer');
-    if (data) return alert('이미 가입된 이름입니다.');
+    if (data) return alert('이미 사용중인 이름');
     state.signUp.step++; updateSignUpUI();
   } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
   else handleFinalSignUpSubmit();
@@ -367,7 +391,7 @@ async function handleFinalSignUpSubmit() {
     await supabase.from('basic_timetable').delete().eq('user_name', name);
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
     state.isEditMode ? initApp() : location.reload();
-  } catch (err) { alert(err.message); showView('signUpContainer'); }
+  } catch (err) { alert('오류'); }
 }
 
 async function openEditTimetable() {
