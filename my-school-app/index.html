@@ -2,322 +2,99 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="수업 진도 관리">
-  <meta name="theme-color" content="#1A365D">
-  
-  <link rel="icon" href="https://i.imgur.com/spgeYqp.png">
-  <link rel="apple-touch-icon" href="https://i.imgur.com/spgeYqp.png">
-  
+  <title>수업 진도 관리</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  
-  <title>수업 진도 관리</title>
-
   <style>
-    :root { 
-      --primary: #1A365D;
-      --primary-hover: #2c5282; 
-      --bg: #F1F5F9; 
-      --surface: #FFFFFF; 
-      --text-main: #2D3748; 
-      --text-muted: #718096; 
-      --border: #E2E8F0; 
-      --highlight: #EBF8FF; 
-      --danger: #E53E3E; 
-      --danger-hover: #C53030;
-    }
-    
-    body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); margin: 0; padding: 20px 15px; color: var(--text-main); }
-    
-    .container { max-width: 480px; margin: 0 auto; background: var(--surface); padding: 0; border-radius: 24px; overflow: hidden; box-shadow: 0 12px 36px rgba(26,54,93,0.08); border: 1px solid rgba(0,0,0,0.03); position: relative; }
-    
-    .view:not(.hidden) { animation: fadeSlideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-    @keyframes fadeSlideUp {
-      0% { opacity: 0; transform: translateY(15px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-
-    #signUpView, #preSetupSubView, #preSetupGcView { background: var(--primary); }
-    #signUpView h2, #preSetupSubView h2, #preSetupGcView h2 { color: white !important; }
-    #signUpView p, #preSetupSubView p, #preSetupGcView p { color: #CBD5E0 !important; }
-    #signUpView .large-input, #preSetupSubView .large-input, #preSetupGcView .large-input { background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: white !important; }
-    #signUpView .large-input::placeholder, #preSetupSubView .large-input::placeholder, #preSetupGcView .large-input::placeholder { color: #A0AEC0 !important; }
-    #signUpView button.next-btn, #preSetupSubView button.next-btn, #preSetupGcView button.next-btn { background: white !important; color: var(--primary) !important; }
-    #signUpView button.next-btn:hover, #preSetupSubView button.next-btn:hover, #preSetupGcView button.next-btn:hover { background: #F8FAFC !important; }
-    #signUpView .btn-outline, #preSetupSubView .btn-outline, #preSetupGcView .btn-outline { background: transparent !important; color: white !important; border-color: rgba(255, 255, 255, 0.4) !important; }
-    #signUpView .btn-outline:hover, #preSetupSubView .btn-outline:hover, #preSetupGcView .btn-outline:hover { background: rgba(255, 255, 255, 0.1) !important; }
-
-    .btn-dark-danger { background: rgba(229, 62, 62, 0.2); color: #FC8181; border: 1px solid rgba(229, 62, 62, 0.5); border-radius: 12px; width: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
-    .btn-dark-danger:hover { background: rgba(229, 62, 62, 0.4); color: white; }
-
-    .app-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 10px; background: white; }
-    .app-title { font-size: 20px; font-weight: 700; color: var(--primary); }
-    .settings-btn { color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 8px; border-radius: 8px; transition: 0.2s; }
-    .settings-btn:hover { background: var(--bg); color: var(--primary); }
-
-    .date-nav { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px 20px; background: white; border-bottom: 1px solid var(--border); }
-    .nav-arrow { width: 38px; height: 38px; background: #F8FAFC; border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); cursor: pointer; transition: 0.2s; }
-    .nav-arrow:hover { background: var(--highlight); }
-    
-    .date-display { position: relative; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; color: var(--text-main); cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: 0.2s; overflow: hidden; }
-    .date-display input[type="date"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
-    
-    .content { padding: 20px; min-height: 300px; }
-    
-    .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: all 0.2s ease; cursor: pointer; }
-    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(26,54,93,0.1); border-color: #A0AEC0; }
-    
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed var(--border); padding-bottom: 10px; }
-    .period-badge { background: var(--primary); color: white; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 14px; white-space: nowrap; flex-shrink: 0; }
-    
-    .manage-link { font-size: 11.5px; color: var(--primary); cursor: pointer; position: relative; z-index: 2; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border); background: #F8FAFC; font-weight: 500; transition: 0.2s; white-space: nowrap; }
-    .manage-link:hover { background: var(--highlight); border-color: #bee3f8; }
-
-    .prog-box { display: flex; flex-direction: column; gap: 8px; }
-    .prog-row { display: flex; font-size: 14px; padding: 10px; border-radius: 8px; }
-    .prog-row.prev { background: #F8FAFC; color: var(--text-muted); }
-    .prog-row.today { background: var(--highlight); color: var(--primary); border: 1px dashed #BEE3F8; font-weight: 500; }
-    .label { width: 70px; font-weight: 700; font-size: 12px; margin-top: 2px; }
-
+    :root { --primary: #1A365D; --primary-hover: #2c5282; --bg: #F1F5F9; --surface: #FFFFFF; --text-main: #2D3748; --text-muted: #718096; --border: #E2E8F0; --highlight: #EBF8FF; --danger: #E53E3E; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); margin: 0; padding: 15px; color: var(--text-main); }
+    .container { max-width: 480px; margin: 0 auto; background: var(--surface); border-radius: 24px; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.08); position: relative; min-height: 500px; }
+    .view { padding: 25px 20px; transition: 0.3s; }
     .hidden { display: none !important; }
-    .view { padding: 25px 20px; }
-    .view-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
-    .close-x { font-size: 22px; color: var(--text-muted); cursor: pointer; padding: 0 5px; transition: 0.2s; }
-    .close-x:hover { color: var(--danger); }
-
-    .action-row { display: flex; gap: 10px; margin-top: 15px; }
-    
-    .manage-sub-title { font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 12px; margin-top: 10px; }
-    .large-input { font-size: 17px !important; padding: 16px !important; margin-bottom: 10px; text-align: center; width: 100%; box-sizing: border-box; }
-    
-    .setup-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 15px; }
-    .setup-table th { background: transparent; padding: 8px 2px; border: none; font-size: 12px; color: var(--text-muted); }
-    .setup-table td { border: none; padding: 2px; vertical-align: top; overflow: hidden; }
-    .cell-input-group { display: flex; flex-direction: column; gap: 3px; }
-    
-    .setup-in { width: 100%; height: 32px; line-height: 32px; padding: 0; text-align: center; font-family: inherit; font-size: clamp(11px, 2.8vw, 13px); font-weight: 700; outline: none; box-sizing: border-box; transition: font-size 0.1s, box-shadow 0.2s, background-color 0.2s; border-radius: 20px; border: 1px solid transparent; background-color: transparent; }
-    .setup-in::placeholder { font-size: 10px; font-weight: 400; color: #CBD5E0; letter-spacing: normal; }
-    .setup-in:focus { box-shadow: 0 0 0 2px var(--primary); z-index: 10; position: relative; }
-    
-    input[type="text"], input[type="password"], input[type="number"], input[type="date"], textarea { width: 100%; padding: 12px; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; box-sizing: border-box; outline: none; }
-    input[type="text"]:focus, input[type="password"]:focus { border-color: var(--primary); }
-    
-    button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 16px; }
-    button:disabled { opacity: 0.7; cursor: not-allowed; }
-    button:hover { background: var(--primary-hover); }
-    
-    .btn-danger { background: var(--danger); }
-    .btn-danger:hover { background: var(--danger-hover); }
-    .btn-outline { background: white; color: var(--text-muted); border: 1.5px solid var(--border); margin-top: 8px; }
-    .btn-outline:hover { background: #F8FAFC; color: var(--text-main); }
-    .btn-icon-only { flex-shrink: 0; width: 65px; font-size: 20px; display: flex; align-items: center; justify-content: center; }
-
-    .grid-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; flex: 1; }
-
-    .quick-btn { padding: 8px 2px; border-radius: 20px; font-size: 12px; letter-spacing: -0.5px; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: 0.1s; width: 100%; box-sizing: border-box; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; background: transparent; }
-    .quick-btn:active { transform: scale(0.95); }
-
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-    .modal-box { background: white; padding: 25px 20px 20px; border-radius: 16px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-    .modal-msg { font-size: 16px; color: var(--text-main); margin-bottom: 25px; line-height: 1.5; font-weight: 500; word-break: keep-all; }
-    .modal-btn-group { display: flex; gap: 10px; justify-content: center; }
-    .modal-btn { flex: 1; padding: 12px; font-size: 15px; border-radius: 10px; cursor: pointer; border: none; font-family: inherit; font-weight: 700; }
-    .modal-btn.cancel { background: #E2E8F0; color: var(--text-main); }
-
-    .history-card { background: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; text-align: left; }
-    .history-date { font-size: 11px; color: var(--primary); font-weight: 700; margin-bottom: 4px; }
-    .history-content { font-size: 13.5px; color: var(--text-main); margin-bottom: 4px; }
-    .history-note { font-size: 12.5px; color: var(--text-muted); background: #F8FAFC; padding: 6px; border-radius: 6px; }
+    input, textarea { width: 100%; padding: 12px; border: 1.5px solid var(--border); border-radius: 10px; box-sizing: border-box; outline: none; }
+    button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 16px; margin-top: 10px; }
+    .btn-outline { background: white; color: var(--text-muted); border: 1.5px solid var(--border); }
+    .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; }
+    .period-badge { background: var(--primary); color: white; font-size: 12px; padding: 4px 8px; border-radius: 10px; }
+    .setup-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+    .setup-table th, .setup-table td { padding: 5px; text-align: center; }
+    .setup-in { width: 100%; border-radius: 15px; border: 1px solid var(--border); padding: 5px; text-align: center; font-size: 12px; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-box { background: white; padding: 20px; border-radius: 16px; width: 85%; max-width: 320px; }
   </style>
 </head>
 <body>
-
 <div class="container">
-  
-  <div id="loginView" class="view hidden" style="padding-top: 50px; padding-bottom: 40px;">
-    <h2 style="text-align:center; color:var(--primary); font-size:24px; margin-bottom:15px;">수업 진도 관리</h2>
-    <p style="text-align:center; color:var(--text-muted); font-size:14px; margin-bottom:25px; line-height:1.5;">선생님의 성함과 비밀번호를 입력해주세요.</p>
-    
-    <div style="margin-bottom: 10px;">
-      <input type="text" id="loginNameInput" class="large-input" placeholder="이름 (예: 김수학)" autocomplete="off">
-    </div>
-    <div style="margin-bottom: 25px;">
-      <input type="password" id="loginPasswordInput" class="large-input" placeholder="비밀번호" autocomplete="off">
-    </div>
-
+  <div id="loginView" class="view hidden">
+    <h2 style="text-align:center; color:var(--primary);">수업 진도 관리</h2>
+    <input type="text" id="loginNameInput" placeholder="이름 (예: 김수학)" style="margin-top:20px;">
+    <input type="password" id="loginPasswordInput" placeholder="비밀번호" style="margin-top:10px;">
     <button id="loginBtn">로그인</button>
-    <button class="btn-outline" id="btnGoSignUp" style="margin-top:10px;">처음 시작하기</button>
-    
-    <div style="text-align:center; margin-top:25px;">
-      <span class="install-guide-trigger" style="font-size:13px; color:var(--text-muted); text-decoration:underline; text-underline-offset:3px; cursor:pointer;"><i class="fa-solid fa-mobile-screen-button"></i> 홈 화면에 추가하는 방법</span>
-    </div>
+    <button id="btnGoSignUp" class="btn-outline">처음 시작하기</button>
   </div>
 
-  <div id="signUpView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
-    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">처음 시작하기 (1/3)</h2>
-    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">사용하실 이름과 비밀번호를 설정해주세요.</p>
-    
-    <div style="margin-bottom: 10px;">
-      <input type="text" id="signUpNameInput" class="large-input" placeholder="이름 (예: 김수학)" autocomplete="off">
-    </div>
-    <div style="margin-bottom: 25px;">
-      <input type="password" id="signUpPasswordInput" class="large-input" placeholder="비밀번호" autocomplete="off">
-    </div>
-
-    <button id="step1NextBtn" class="next-btn">다음</button>
-    <button class="btn-outline" id="btnCancelSignUp" style="margin-top:10px;">취소 (돌아가기)</button>
+  <div id="signUpView" class="view hidden" style="background:var(--primary); color:white;">
+    <h2 style="text-align:center;">처음 시작하기 (1/3)</h2>
+    <input type="text" id="signUpNameInput" placeholder="이름" style="margin-top:20px;">
+    <input type="password" id="signUpPasswordInput" placeholder="비밀번호" style="margin-top:10px;">
+    <button id="step1NextBtn" style="background:white; color:var(--primary);">다음</button>
+    <button id="btnCancelSignUp" class="btn-outline" style="color:white; border-color:white;">취소</button>
   </div>
 
-  <div id="preSetupSubView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
-    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">과목 등록 (2/3)</h2>
-    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">담당하시는 수업 과목을 모두 추가해주세요.<br><span style="color:#A0AEC0; font-size:12px;">(예: 수학, 기하, 미적분)</span></p>
-    
+  <div id="preSetupSubView" class="view hidden" style="background:var(--primary); color:white;">
+    <h2 style="text-align:center;">과목 등록 (2/3)</h2>
     <div id="subInputContainer"></div>
-
-    <button class="btn-outline" id="btnAddSubInput" style="margin-bottom:25px; padding: 12px; font-size: 14px;"><i class="fa-solid fa-plus"></i> 과목 칸 추가</button>
-    <button class="next-btn" id="btnGoToStep3">다음</button>
-    <button class="btn-outline" id="btnBackToStep1" style="margin-top:10px;">이전 단계로</button>
+    <button id="btnAddSubInput" class="btn-outline" style="color:white;">+ 과목 추가</button>
+    <button id="btnGoToStep3" style="background:white; color:var(--primary);">다음</button>
   </div>
 
-  <div id="preSetupGcView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
-    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">학년 및 반 등록 (3/3)</h2>
-    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">담당하시는 학년과 반 번호(쉼표 구분)를<br>입력해주세요.</p>
-    
+  <div id="preSetupGcView" class="view hidden" style="background:var(--primary); color:white;">
+    <h2 style="text-align:center;">학년반 등록 (3/3)</h2>
     <div id="gcInputContainer"></div>
-
-    <button class="btn-outline" id="btnAddGcInput" style="margin-bottom:25px; padding: 12px; font-size: 14px;"><i class="fa-solid fa-plus"></i> 다른 학년 추가</button>
-    <button class="next-btn" id="btnGoToTimetable">다음 (시간표 만들기)</button>
-    <button class="btn-outline" id="btnBackToStep2" style="margin-top:10px;">이전 단계로</button>
-  </div>
-
-  <div id="loadingView" class="view hidden" style="padding-top: 80px; padding-bottom: 80px; text-align:center;">
-    <i class="fa-solid fa-spinner fa-spin" style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"></i>
-    <div id="loadingText" style="color:var(--primary); font-weight:700; font-size:16px;">시간표를 준비하고 있습니다...</div>
+    <button id="btnAddGcInput" class="btn-outline" style="color:white;">+ 학년 추가</button>
+    <button id="btnGoToTimetable" style="background:white; color:var(--primary);">시간표 만들기</button>
   </div>
 
   <div id="dashView" class="view hidden">
-    <div class="app-header">
-      <div class="app-title">수업 대시보드</div>
-      <div class="settings-btn" id="btnOpenSettings"><i class="fa-solid fa-gear"></i></div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span id="dateText" style="font-weight:bold; font-size:18px;">날짜 로드 중...</span>
+      <div id="btnOpenSettings" style="cursor:pointer;"><i class="fa-solid fa-gear"></i></div>
     </div>
-    <div class="date-nav">
-      <div class="nav-arrow" id="btnPrevDate"><i class="fa-solid fa-chevron-left"></i></div>
-      <div class="date-display">
-        <i class="fa-regular fa-calendar"></i>
-        <span id="dateText">조회 중...</span>
-        <input type="date" id="hiddenDate">
-      </div>
-      <div class="nav-arrow" id="btnNextDate"><i class="fa-solid fa-chevron-right"></i></div>
-    </div>
-    <div id="dashList" class="content"></div>
+    <input type="date" id="hiddenDate" style="margin: 10px 0;">
+    <div id="dashList" style="margin-top:20px;"></div>
   </div>
 
   <div id="inputView" class="view hidden">
-    <div class="view-header" style="align-items: center; margin-bottom: 20px;">
-      <div id="inputTitle" style="flex:1; margin:0;"></div>
-      <div class="close-x" id="btnCloseInput"><i class="fa-solid fa-xmark"></i></div>
-    </div>
-    <div style="margin-bottom:15px;">
-      <label style="font-weight:700; margin-bottom:5px; display:block; color:var(--text-main); font-size:14px;">오늘 진도</label>
-      <input type="text" id="progContent" class="large-input" placeholder="예: 교과서 p.120~125 완료" style="text-align:left;">
-    </div>
-    <div style="margin-bottom:15px;">
-      <label style="font-weight:700; margin-bottom:5px; display:block; color:var(--text-main); font-size:14px;">메모</label>
-      <textarea id="progNotes" rows="3" placeholder="기억해야 할 내용이나 특이사항을 입력하세요"></textarea>
-    </div>
-    
-    <div style="margin-bottom:20px;">
-      <button type="button" class="btn-outline" id="btnToggleHistory" style="width:100%; font-size:13px; padding:10px; display:flex; justify-content:space-between; align-items:center; border-radius:10px; background:#F8FAFC !important; border-color:transparent !important;">
-        <span><i class="fa-regular fa-folder-open"></i> 이전 진도 및 메모 모아보기</span>
-        <i id="historyToggleIcon" class="fa-solid fa-chevron-down"></i>
-      </button>
-      <div id="historyContainer" class="hidden" style="margin-top:10px; padding:10px; background:white; border-radius:12px; border:1px dashed var(--border); max-height:220px; overflow-y:auto; font-size:13px;"></div>
-    </div>
-
-    <div class="action-row">
-      <button id="saveBtn">기록 저장</button>
-    </div>
+    <div id="inputTitle" style="font-weight:bold; margin-bottom:15px;"></div>
+    <input type="text" id="progContent" placeholder="오늘 진도">
+    <textarea id="progNotes" placeholder="메모" style="margin-top:10px;"></textarea>
+    <div id="historyContainer" style="margin-top:15px; font-size:12px; color:var(--text-muted); max-height:150px; overflow-y:auto; border-top:1px dashed #ccc; padding-top:10px;"></div>
+    <button id="saveBtn">저장</button>
+    <button onclick="location.reload()" class="btn-outline">닫기</button>
   </div>
 
   <div id="setupView" class="view hidden">
-    <div class="view-header" style="align-items: center;">
-      <h2 id="setupTitle">전체 시간표 수정</h2>
-      <div id="setupCloseBtn" class="close-x"><i class="fa-solid fa-xmark"></i></div>
+    <h2 id="setupTitle">시간표 설정</h2>
+    <div id="quickInputSection" style="margin-bottom:15px; padding:10px; border:1px dashed #ccc; border-radius:10px;">
+        <div style="font-size:12px; font-weight:bold; margin-bottom:5px;">빠른 선택</div>
+        <div id="quickSubBtns" style="display:flex; gap:5px; flex-wrap:wrap;"></div>
+        <div id="quickGcBtns" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;"></div>
     </div>
-    
-    <div id="quickInputSection" style="margin-bottom: 15px; padding: 12px; background: white; border-radius: 12px; border: 1px dashed #CBD5E0; display: none;">
-      <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 12px;"><i class="fa-solid fa-bolt"></i> 빠른 입력</div>
-      <div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
-        <div style="width: 35px; font-size: 12px; font-weight: 700; color: var(--primary); flex-shrink: 0; padding-top: 6px;">과목</div>
-        <div id="quickSubBtns" class="grid-row"></div>
-      </div>
-      <div style="display: flex; align-items: flex-start;">
-        <div style="width: 35px; font-size: 12px; font-weight: 700; color: #4A5568; flex-shrink: 0; padding-top: 6px;">학급</div>
-        <div id="quickGcBtns" class="grid-row"></div>
-      </div>
-    </div>
-
     <table class="setup-table">
-      <thead><tr><th style="width:30px"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
+      <thead><tr><th></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
       <tbody id="setupBody"></tbody>
     </table>
-    
-    <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
-      <button id="addPeriodBtn" class="btn-outline" style="padding: 8px 16px; border-radius: 20px; font-size: 13px; width: auto;"><i class="fa-solid fa-plus"></i> 교시 추가</button>
-      <button id="removePeriodBtn" class="btn-outline" style="padding: 8px 16px; border-radius: 20px; font-size: 13px; width: auto; color: var(--danger); border-color: #fca5a5;"><i class="fa-solid fa-minus"></i> 교시 삭제</button>
-    </div>
-
-    <div class="action-row">
-      <button id="saveSetupBtn">저장 및 반영</button>
-      <button id="clearSetupBtn" class="btn-danger btn-icon-only"><i class="fa-solid fa-trash-can"></i></button>
-    </div>
-    
-    <button id="setupLogoutBtn" class="btn-outline" style="margin-top:20px; padding:12px; font-size:14px;"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
-    <button id="setupCancelBtn" class="btn-outline hidden" style="margin-top:20px; padding:12px; font-size:14px;">가입 취소 (처음으로)</button>
+    <button id="saveSetupBtn">저장 및 반영</button>
+    <button id="setupLogoutBtn" class="btn-outline">로그아웃</button>
   </div>
 
-  <div id="customModal" class="modal-overlay hidden">
-    <div class="modal-box">
-      <div id="customModalMsg" class="modal-msg"></div>
-      <div id="customModalBtns" class="modal-btn-group"></div>
-    </div>
+  <div id="loadingView" class="view hidden" style="text-align:center; padding-top:100px;">
+    <i class="fa-solid fa-spinner fa-spin" style="font-size:40px; color:var(--primary);"></i>
+    <p id="loadingText" style="margin-top:20px;">데이터를 불러오고 있습니다...</p>
   </div>
-
-  <div id="installGuideModal" class="modal-overlay hidden">
-    <div class="modal-box" style="text-align: left;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <h3 style="margin:0; font-size:18px; color:var(--primary);">홈 화면에 앱 추가하기</h3>
-        <div class="close-x" id="btnCloseInstallGuide"><i class="fa-solid fa-xmark"></i></div>
-      </div>
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:700; color:#2B593F; margin-bottom:8px; display:flex; align-items:center; gap:5px;"><i class="fa-brands fa-android"></i> 안드로이드</div>
-        <ol style="margin:0; padding-left:20px; font-size:14px; color:var(--text-main); line-height:1.6;">
-          <li><strong>Chrome</strong> 브라우저로 접속합니다.</li>
-          <li>우측 상단의 <strong>메뉴 [⋮]</strong>를 누릅니다.</li>
-          <li><strong>[홈 화면에 추가]</strong>를 선택합니다.</li>
-        </ol>
-      </div>
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:700; color:#28456C; margin-bottom:8px; display:flex; align-items:center; gap:5px;"><i class="fa-brands fa-apple"></i> 아이폰</div>
-        <ol style="margin:0; padding-left:20px; font-size:14px; color:var(--text-main); line-height:1.6;">
-          <li><strong>Safari</strong> 브라우저로 접속합니다.</li>
-          <li>하단의 <strong>공유 [↑]</strong> 아이콘을 누릅니다.</li>
-          <li><strong>[홈 화면에 추가]</strong>를 선택합니다.</li>
-        </ol>
-      </div>
-      <button id="btnCloseGuideFinal" style="padding:12px; font-size:15px;">확인했습니다</button>
-    </div>
-  </div>
-
 </div>
 
 <script type="module" src="/main.js"></script>
-
 </body>
 </html>
