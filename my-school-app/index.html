@@ -34,7 +34,9 @@
     .mini-input-chip { background: white; border: 2px solid #005CC5; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: 700; width: 85px; }
     
     .dashboard-header { padding: 32px 32px 20px; background: white; }
-    .teacher-label { font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    /* 선생님 성함 라벨 스타일 수정 */
+    .teacher-label { font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .teacher-name-highlight { color: #005CC5; font-weight: 900; }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -43,14 +45,14 @@
     
     <div id="loadingView" class="view-transition hidden fixed inset-0 z-[300] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center text-center">
       <i class="fa-solid fa-spinner fa-spin text-4xl text-[#005CC5]"></i>
-      <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm tracking-tight">잠시만 기다려주세요...</p>
+      <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm tracking-tight">데이터를 불러오고 있습니다...</p>
     </div>
 
     <section id="loginView" class="view-transition hidden fixed inset-0 z-50 bg-white flex flex-col justify-center px-10">
       <div class="mb-12 text-center">
         <div class="inline-flex p-5 bg-blue-50 rounded-[32px] mb-6 shadow-sm"><i class="fa-solid fa-layer-group text-4xl text-[#005CC5]"></i></div>
         <h1 class="text-3xl font-black tracking-tight">Class Flow</h1>
-        <p class="text-slate-400 mt-2 font-medium">선생님을 위한 스마트 진도 관리</p>
+        <p class="text-slate-400 mt-2 font-medium">수업 진도 관리의 새로운 기준</p>
       </div>
       <div class="space-y-3">
         <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold outline-none">
@@ -119,7 +121,7 @@
 
     <main id="mainView" class="view-transition hidden flex-1 pb-10">
       <div class="dashboard-header">
-        <p class="teacher-label"><span id="userNameDisplay">...</span> 선생님</p>
+        <p class="teacher-label"><span id="userNameDisplay" class="teacher-name-highlight">...</span> 선생님</p>
         <div class="flex justify-between items-center">
           <h1 class="text-2xl font-black text-slate-900 tracking-tight">수업 대시보드</h1>
           <button id="btnSettings" class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 active:scale-90 transition-all"><i class="fa-solid fa-gear"></i></button>
@@ -127,7 +129,7 @@
         
         <div class="flex items-center gap-2 mt-6 bg-slate-50 p-1.5 rounded-2xl">
             <button id="btnPrevDate" class="w-12 h-12 flex items-center justify-center text-slate-400 active:text-slate-900"><i class="fa-solid fa-chevron-left text-xl"></i></button>
-            <div class="relative flex-1 text-center cursor-pointer active:scale-95 transition-transform">
+            <div id="dateTextGroup" class="relative flex-1 text-center cursor-pointer active:bg-slate-100 rounded-xl transition-all">
               <h2 id="currentDateDisplay" class="text-sm font-black text-slate-700 py-3 tracking-tight">...</h2>
               <input type="date" id="datePicker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
             </div>
@@ -159,11 +161,11 @@
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
         <header class="mb-6">
-            <span id="sheetBadge" class="text-[10px] font-black bg-blue-50 text-[#005CC5] px-2 py-1 rounded-md mb-2 inline-block uppercase">...</span>
+            <span id="sheetBadge" class="text-[10px] font-black bg-blue-50 text-[#005CC5] px-2 py-1 rounded-md mb-2 inline-block uppercase tracking-wider">...</span>
             <h3 id="sheetTitle" class="text-2xl font-black text-slate-900 tracking-tight">진도 기록</h3>
         </header>
         <div class="space-y-5">
-          <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
+          <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100 shadow-inner">
             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">지난 수업 내용</p>
             <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
           </div>
@@ -173,7 +175,7 @@
           </div>
           <div>
             <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">메모 및 특이사항</label>
-            <textarea id="progNote" placeholder="학생들 반응이나 전달사항" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
+            <textarea id="progNote" placeholder="전달사항이나 피드백" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
           </div>
           <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-2xl shadow-blue-100 active:scale-95 transition-all">진도 저장하기</button>
         </div>

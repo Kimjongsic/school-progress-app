@@ -1,11 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 1. Supabase 연동 설정 (선생님 정보 유지)
 const supabaseUrl = 'https://gckplcpwrvabhqqohuib.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja3BsY3B3cnZhYmhxcW9odWliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDI3NTYsImV4cCI6MjA5NDQ3ODc1Nn0.rg9p24pmgeAIe6EcNZjIFEePXtpesnOnOZRlQKyUcuU';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- 애플리케이션 상태 관리 ---
 let state = {
   user: JSON.parse(localStorage.getItem('cf_user')) || null,
   activeDate: new Date(),
@@ -32,12 +30,21 @@ function showView(id) {
   if (target) target.classList.remove('hidden');
 }
 
-function initApp() {
+async function initApp() {
   state.isEditMode = false;
   state.isTagEditMode = false;
   showView('mainView');
+  
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
+
+  // [중요] 대시보드 색상 일치를 위해 현재 사용자의 과목/반 목록을 미리 로드
+  const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
+  if (current) {
+    state.signUp.subs = [...new Set(current.map(i => i.subject))];
+    state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
+  }
+
   updateDateUI();
   fetchTimetable();
 }
@@ -49,14 +56,11 @@ function initEvents() {
     updateSignUpUI(); showView('signUpContainer');
   });
 
-  document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
-    if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }
-  });
+  document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   
-  // X버튼 제어
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
     if (state.isEditMode) {
-      if(confirm('수정 중인 시간표가 저장되지 않았습니다. 취소할까요?')) initApp();
+      if(confirm('수정 중인 내용이 사라집니다. 취소할까요?')) initApp();
     } else { showView('loginView'); }
   });
 
@@ -75,6 +79,13 @@ function initEvents() {
 
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
+  
+  // [수정] 날짜 텍스트 클릭 시 달력 열기
+  document.getElementById('dateTextGroup')?.addEventListener('click', () => {
+    const picker = document.getElementById('datePicker');
+    if (picker && typeof picker.showPicker === 'function') picker.showPicker();
+  });
+  
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
     state.activeDate = new Date(e.target.value);
     updateDateUI();
@@ -82,13 +93,12 @@ function initEvents() {
   });
 }
 
-// 편집 모드 토글
+// 편집 모드 제어
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
     ['btnEditTagsStep2', 'btnEditTagsStep3', 'btnEditTagsStep4'].forEach(id => {
-        const btn = document.getElementById(id);
-        if(btn) btn.innerText = btnText;
+        const btn = document.getElementById(id); if(btn) btn.innerText = btnText;
     });
     if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
     else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
@@ -101,7 +111,7 @@ window.renderTags = (type, containerId) => {
     const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
     
     let html = arr.map((tag, i) => {
-        const color = type === 'sub' ? subPalette[i % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
+        const color = type === 'sub' ? subPalette[state.signUp.subs.indexOf(tag) % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
         return `
             <div class="tag-chip">
@@ -111,15 +121,17 @@ window.renderTags = (type, containerId) => {
     }).join('');
 
     if (state.isTagEditMode) {
-        html += `<button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button>
+        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button>
                  <div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
 
 window.showInlineInput = (type, containerId) => {
-    document.getElementById(`btnShow${type}Input`).classList.add('hidden');
-    document.getElementById(`${type}InputWrap`).classList.remove('hidden');
+    const btn = document.getElementById(`btnShow${type}Input`);
+    const wrap = document.getElementById(`${type}InputWrap`);
+    if(btn) btn.classList.add('hidden');
+    if(wrap) wrap.classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput`);
     if(input) { input.focus(); input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); }; }
 };
@@ -194,7 +206,7 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// --- [핵심] 대시보드 렌더링 및 진도 노출 로직 ---
+// --- [수정] 대시보드 강화 로직 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -207,32 +219,38 @@ async function fetchTimetable() {
     supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
   ]);
 
-  if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다.</div>`; return; }
+  if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
 
   const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
     
-    // 스타일 로직 (시간표 칩과 동일하게)
+    // [색상 일치 로직] 시간표와 동일하게 추출
     const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
     const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
 
     return `
       <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer" 
            onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md uppercase tracking-tighter">${item.period}P</span>
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black text-white" style="background:${subColor}">${item.subject}</span>
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <span class="text-[12px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
+            <span class="px-3 py-1 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
+            <span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
-          <div class="w-8 h-8 rounded-xl ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center">
+          <div class="w-10 h-10 rounded-2xl ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-xl">
             <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-pen-to-square'}"></i>
           </div>
         </div>
-        <div class="space-y-1.5 pl-1">
-          <p class="text-[11px] font-bold text-slate-400">마지막 진도: <span class="text-slate-600">${prev?.content || '-'}</span></p>
-          <p class="text-[11px] font-bold text-slate-400">오늘의 진도: <span class="${today ? 'text-[#005CC5]' : 'text-slate-300 italic'}">${today ? today.content : '입력하기 +'}</span></p>
+        <div class="space-y-2 pl-1 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+          <div class="flex gap-2">
+            <span class="text-[10px] font-black text-slate-300 w-12 shrink-0">LAST</span>
+            <p class="text-[11px] font-bold text-slate-500 line-clamp-1">${prev?.content || '-'}</p>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-[10px] font-black text-[#005CC5] w-12 shrink-0">TODAY</span>
+            <p class="text-[12px] font-black text-slate-700 line-clamp-1">${today ? today.content : '<span class="text-slate-300 font-medium italic">입력 전입니다</span>'}</p>
+          </div>
         </div>
       </div>`;
   }));
@@ -250,18 +268,15 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   toggleSheet(true);
 };
 
-// --- [중요] 진도 저장 로직 수정 ---
+// 진도 저장 로직 (UNIQUE 제약 조건 필수)
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
 
-  if (!content) return alert('진도 내용을 입력해 주세요.');
+  if (!content) return alert('오늘 나간 진도를 입력해 주세요.');
   
   showView('loadingView');
-  const loadingMsg = document.getElementById('loadingMsg');
-  if(loadingMsg) loadingMsg.innerText = "진도를 저장하는 중...";
-
   try {
     const { error } = await supabase.from('lesson_records').upsert({
       user_name: state.user.name,
@@ -271,30 +286,27 @@ async function saveProgress() {
       subject: state.selectedItem.subject,
       content: content,
       note: note || '-'
-    }, { 
-      onConflict: 'user_name, date, period, grade_class, subject' 
-    });
+    }, { onConflict: 'user_name, date, period, grade_class, subject' });
 
     if (error) throw error;
 
-    alert('성공적으로 저장되었습니다.');
+    alert('저장되었습니다.');
     toggleSheet(false);
     fetchTimetable();
   } catch (err) {
-    console.error(err);
-    alert('저장 중 오류가 발생했습니다: ' + err.message);
+    alert('저장 실패: ' + err.message);
   } finally {
     showView('mainView');
   }
 }
 
-// --- 기타 유틸리티 ---
+// --- 공통 유틸리티 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-  else alert('로그인 실패');
+  else alert('로그인 정보를 확인해주세요.');
 }
 
 async function handleNextButton() {
@@ -305,7 +317,7 @@ async function handleNextButton() {
     showView('loadingView');
     const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
     showView('signUpContainer');
-    if (data) return alert('이미 사용 중인 이름입니다.');
+    if (data) return alert('이미 가입된 이름입니다.');
     state.signUp.step++; updateSignUpUI();
   } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
   else handleFinalSignUpSubmit();
@@ -322,7 +334,7 @@ async function handleFinalSignUpSubmit() {
       for (let p = 1; p <= state.maxPeriods; p++) {
         const subBtn = document.querySelector(`.sub-cell[data-day="${d}"][data-p="${p}"]`);
         const gcBtn = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`);
-        const sub = subBtn?.dataset.fullName;
+        const sub = subBtn?.dataset.fullName || subBtn?.innerText;
         const gc = gcBtn?.innerText;
         if (sub && sub !== '과목' && gc && gc !== '반') timetableData.push({ user_name: name, day: d, period: p, subject: sub, grade_class: gc });
       }
@@ -338,7 +350,7 @@ async function openEditTimetable() {
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a,b) => { const aP=a.split('-').map(Number); const bP=b.split('-').map(Number); return aP[0]!==bP[0]?aP[0]-bP[0]:(aP[1]||0)-(bP[1]||0); });
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
     showView('signUpContainer'); updateSignUpUI();
     current?.forEach(item => {
@@ -354,7 +366,6 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   const backB = document.getElementById('btnSignUpBack');
   const nextB = document.getElementById('btnNextStep');
-  
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
       document.getElementById('progressWrapper').classList.add('hidden');
