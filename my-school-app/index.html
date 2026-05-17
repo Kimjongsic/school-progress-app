@@ -30,9 +30,12 @@
     .overlay-show { opacity: 1 !important; pointer-events: auto !important; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     input:focus { outline: none; }
-    
-    /* 세련된 입력 그룹 스타일 */
-    .input-group-focus { border-color: #005CC5 !important; box-shadow: 0 0 0 4px rgba(0, 92, 197, 0.05); }
+
+    /* 미니 입력 칩 스타일 */
+    .mini-input-chip {
+      background: #F1F5F9; border: 2px solid #005CC5; border-radius: 12px;
+      padding: 4px 10px; font-size: 13px; font-weight: 700; width: 100px;
+    }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -52,7 +55,7 @@
       <div class="space-y-3">
         <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold">
         <input type="password" id="loginPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold">
-        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg mt-4 active:scale-95 transition-all shadow-xl shadow-blue-100">로그인</button>
+        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg mt-4 active:scale-95 transition-all shadow-xl">로그인</button>
         <button id="btnOpenSignUp" class="w-full text-slate-400 font-bold py-4 text-sm">회원가입</button>
       </div>
     </section>
@@ -70,52 +73,38 @@
 
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
         <div id="step1" class="signUpStep hidden">
-          <h2 class="text-2xl font-black mb-6 text-slate-900">계정 설정</h2>
+          <h2 class="text-2xl font-black mb-8 text-slate-900">계정 설정</h2>
           <input type="text" id="regName" placeholder="이름" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold mb-4">
           <input type="password" id="regPin" maxlength="4" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold">
         </div>
 
         <div id="step2" class="signUpStep hidden">
-          <h2 class="text-2xl font-black mb-6 text-slate-900">과목 등록</h2>
-          <div class="flex items-center gap-2 p-1.5 bg-slate-50 rounded-2xl border-2 border-slate-100 mb-6 group" id="subInputGroup">
-            <input type="text" id="subInput" placeholder="과목명을 입력하세요" class="flex-1 bg-transparent px-3 py-2 font-bold text-sm">
-            <button id="btnAddSub" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition-all">추가</button>
-          </div>
+          <h2 class="text-2xl font-black mb-2 text-slate-900">과목 등록</h2>
+          <p class="text-slate-400 text-sm font-bold mb-8">하단의 + 버튼을 눌러 과목을 추가하세요.</p>
           <div id="subTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="step3" class="signUpStep hidden">
-          <h2 class="text-2xl font-black mb-6 text-slate-900">학급 등록</h2>
-          <div class="flex items-center gap-2 p-1.5 bg-slate-50 rounded-2xl border-2 border-slate-100 mb-6 group" id="gcInputGroup">
-            <input type="text" id="gcInput" placeholder="예: 2-6 (학년-반)" class="flex-1 bg-transparent px-3 py-2 font-bold text-sm">
-            <button id="btnAddGc" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition-all">추가</button>
-          </div>
+          <h2 class="text-2xl font-black mb-2 text-slate-900">학급 등록</h2>
+          <p class="text-slate-400 text-sm font-bold mb-8">하단의 + 버튼을 눌러 반을 추가하세요.</p>
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="step4" class="signUpStep hidden">
-          <h2 id="setupTitle" class="text-xl font-black mb-4 text-slate-900 text-center">시간표 관리</h2>
-          <div class="bg-slate-50 p-4 rounded-[28px] mb-4 space-y-3 shadow-inner">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="flex-1 flex items-center bg-white rounded-xl px-3 border border-slate-200">
-                <input type="text" id="editSubIn" placeholder="새 과목+" class="w-full py-2 text-[11px] font-bold">
-                <button id="btnEditAddSub" class="text-[#005CC5] text-[10px] font-black whitespace-nowrap ml-2">등록</button>
-              </div>
-              <div class="w-24 flex items-center bg-white rounded-xl px-3 border border-slate-200">
-                <input type="text" id="editGcIn" placeholder="새 반+" class="w-full py-2 text-[11px] font-bold">
-                <button id="btnEditAddGc" class="text-[#005CC5] text-[10px] font-black whitespace-nowrap ml-2">등록</button>
-              </div>
-            </div>
-            <div id="quickSubSection" class="flex flex-wrap gap-1.5 justify-center"></div>
+          <h2 id="setupTitle" class="text-xl font-black mb-6 text-slate-900 text-center">시간표 설정</h2>
+          
+          <div class="bg-slate-50 p-5 rounded-[32px] mb-6 space-y-4 shadow-inner">
+            <div id="quickSubSection" class="flex flex-wrap gap-2 justify-center"></div>
             <div class="h-px bg-slate-200 mx-4"></div>
-            <div id="quickGcSection" class="flex flex-wrap gap-1.5 justify-center"></div>
+            <div id="quickGcSection" class="flex flex-wrap gap-2 justify-center"></div>
           </div>
+
           <table class="setup-table">
             <thead><tr class="header-cell"><th class="w-8 py-2"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
             <tbody id="setupTableBody"></tbody>
           </table>
           <div class="flex gap-2 mt-4 justify-center">
-            <button id="btnAddPeriod" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black text-slate-50 border">+ 교시</button>
+            <button id="btnAddPeriod" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black text-slate-500 border">+ 교시</button>
             <button id="btnRemovePeriod" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black text-rose-400 border">- 교시</button>
           </div>
         </div>
@@ -129,7 +118,7 @@
           <div class="flex items-center gap-1 mb-1">
             <button id="btnPrevDate" class="w-10 h-10 flex items-center justify-center text-slate-300"><i class="fa-solid fa-chevron-left"></i></button>
             <div class="relative flex-1 text-center">
-              <h2 id="currentDateDisplay" class="text-xl font-black text-slate-900 py-2 px-2 bg-slate-50 rounded-xl">...</h2>
+              <h2 id="currentDateDisplay" class="text-xl font-black text-slate-900 py-2 bg-slate-50 rounded-xl">...</h2>
               <input type="date" id="datePicker" class="absolute inset-0 opacity-0 cursor-pointer">
             </div>
             <button id="btnNextDate" class="w-10 h-10 flex items-center justify-center text-slate-300"><i class="fa-solid fa-chevron-right"></i></button>
@@ -168,12 +157,12 @@
         </header>
         <div class="space-y-4">
           <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
-            <p class="text-[10px] font-black text-slate-400 mb-1">지난 수업</p>
-            <p id="prevProgressText" class="text-slate-700 font-bold text-sm">-</p>
+            <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">지난 수업 내용</p>
+            <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
           </div>
           <input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-bold">
-          <textarea id="progNote" placeholder="메모 (옵션)" rows="2" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-medium"></textarea>
-          <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-2xl active:scale-95 transition-all">기록 저장</button>
+          <textarea id="progNote" placeholder="특이사항 메모 (선택)" rows="2" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-medium"></textarea>
+          <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-[24px] font-bold text-lg shadow-2xl active:scale-95 transition-all">기록 저장하기</button>
         </div>
       </div>
     </div>

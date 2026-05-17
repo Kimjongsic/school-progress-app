@@ -44,14 +44,6 @@ function initEvents() {
     updateSignUpUI(); showView('signUpContainer');
   });
 
-  // 버튼 클릭으로 태그 추가
-  document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
-  document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
-  
-  // 수정 창 내 등록 버튼
-  document.getElementById('btnEditAddSub')?.addEventListener('click', () => addTag('sub', true));
-  document.getElementById('btnEditAddGc')?.addEventListener('click', () => addTag('gc', true));
-
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
     if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }
   });
@@ -68,57 +60,87 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
-  document.querySelectorAll('.btnCloseSheet').forEach(btn => btn.addEventListener('click', () => toggleSheet(false)));
-
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
 }
 
-// [핵심] 태그 추가 및 자동 정렬 로직
-function addTag(type, isQuick = false) {
-    const id = isQuick ? (type === 'sub' ? 'editSubIn' : 'editGcIn') : (type === 'sub' ? 'subInput' : 'gcInput');
-    const input = document.getElementById(id);
-    const val = input?.value.trim();
-    if (!val) return;
+// [핵심] 칩 렌더링 및 + 버튼 로직 통합
+function renderTags(type, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
 
-    let arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-    if (!arr.includes(val)) { 
-        arr.push(val); 
-        
-        // 학급 정렬 (1-1, 1-2, 2-1 순)
-        if (type === 'gc') {
-            state.signUp.gcs.sort((a, b) => {
-                const [aG, aC] = a.split('-').map(Number);
-                const [bG, bC] = b.split('-').map(Number);
-                if (aG !== bG) return aG - bG;
-                return aC - bC;
-            });
-        }
-        
-        isQuick ? renderSetupGrid(true) : renderTags(type); 
-    }
-    if (input) input.value = '';
+    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
+    
+    // 1. 기존 태그들 렌더링
+    let html = arr.map((tag, i) => `
+        <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl text-xs font-bold shadow-sm">
+            <span>${tag}</span>
+            <button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    `).join('');
+
+    // 2. + 버튼 (입력 버튼) 추가
+    html += `
+        <div id="${type}AddContainer" class="flex items-center">
+            <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 transition-all border-2 border-dashed border-slate-200">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <div id="${type}InputWrap" class="hidden flex items-center gap-1">
+                <input type="text" id="${type}MiniInput" class="mini-input-chip" placeholder="${type === 'sub' ? '과목명' : '학년-반'}">
+                <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-8 h-8 rounded-lg bg-[#005CC5] text-white text-[10px] font-black">확인</button>
+                <button onclick="window.hideInlineInput('${type}', '${containerId}')" class="text-slate-300 px-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
 }
 
-function renderTags(type) {
-  const container = document.getElementById(type === 'sub' ? 'subTagContainer' : 'gcTagContainer');
-  const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-  if (container) {
-    container.innerHTML = arr.map((tag, i) => `
-      <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
-        <span>${tag}</span>
-        <button onclick="window.removeTag('${type}', ${i})" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-      </div>`).join('');
-  }
-}
-
-window.removeTag = (type, i) => {
-  const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-  arr.splice(i, 1); renderTags(type);
-  if(state.isEditMode) renderSetupGrid(true);
+// 인라인 입력창 제어 함수들
+window.showInlineInput = (type, containerId) => {
+    document.getElementById(`btnShow${type}Input`).classList.add('hidden');
+    const wrap = document.getElementById(`${type}InputWrap`);
+    wrap.classList.remove('hidden');
+    const input = document.getElementById(`${type}MiniInput`);
+    input.focus();
+    // 엔터키 지원
+    input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); };
 };
 
-// 시간표 그리드 렌더링
+window.hideInlineInput = (type, containerId) => {
+    renderTags(type, containerId); // 리렌더링하여 초기화
+};
+
+window.submitInlineInput = (type, containerId) => {
+    const input = document.getElementById(`${type}MiniInput`);
+    const val = input.value.trim();
+    if (!val) return window.hideInlineInput(type, containerId);
+
+    let arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
+    if (!arr.includes(val)) {
+        arr.push(val);
+        // 학급 정렬 로직 (1-1, 1-2, 2-1...)
+        if (type === 'gc') {
+            state.signUp.gcs.sort((a, b) => {
+                const aParts = a.split('-').map(Number);
+                const bParts = b.split('-').map(Number);
+                if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0];
+                return (aParts[1] || 0) - (bParts[1] || 0);
+            });
+        }
+    }
+    renderTags(type, containerId);
+    if(state.isEditMode) renderSetupGrid(true);
+};
+
+window.removeTag = (type, i, containerId) => {
+    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
+    arr.splice(i, 1);
+    renderTags(type, containerId);
+    if(state.isEditMode) renderSetupGrid(true);
+};
+
+// 시간표 그리드 렌더링 (수정창 모드에서도 칩 정렬 반영)
 function renderSetupGrid(keepValues = false) {
   const body = document.getElementById('setupTableBody');
   if (!body) return;
@@ -153,10 +175,11 @@ function renderSetupGrid(keepValues = false) {
     }
   });
 
+  // 하단 퀵 버튼들도 동일한 로직으로 정렬되어 노출
   const subSec = document.getElementById('quickSubSection');
   const gcSec = document.getElementById('quickGcSection');
-  if (subSec) subSec.innerHTML = state.signUp.subs.map((s, i) => `<button class="px-3 py-1.5 rounded-full text-[10px] font-black text-white shadow-sm" style="background:${subPalette[i % subPalette.length]}" onclick="window.fillCell('sub', '${s}', '${subPalette[i % subPalette.length]}')">${s}</button>`).join('');
-  if (gcSec) gcSec.innerHTML = state.signUp.gcs.map(g => `<button class="px-3 py-1.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gradePalette[g[0]] || gradePalette.default}; border-color:${gradePalette[g[0]] || gradePalette.default}" onclick="window.fillCell('gc', '${g}', '${gradePalette[g[0]] || gradePalette.default}')">${g}</button>`).join('');
+  if (subSec) renderTags('sub', 'quickSubSection');
+  if (gcSec) renderTags('gc', 'quickGcSection');
 
   document.querySelectorAll('.setup-in').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -165,6 +188,36 @@ function renderSetupGrid(keepValues = false) {
       state.activeCell = { type: btn.classList.contains('sub-cell') ? 'sub' : 'gc', day: btn.dataset.day, p: btn.dataset.p };
     });
   });
+}
+
+// --- 유틸리티 및 데이터 통신 ---
+function toggleSettings(open) {
+    const sheet = document.getElementById('settingsSheet');
+    const overlay = document.getElementById('settingsOverlay');
+    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
+}
+
+async function openEditTimetable() {
+    toggleSettings(false);
+    state.isEditMode = true;
+    state.signUp.step = 4;
+    showView('loadingView');
+    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
+    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
+        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
+        if (aP[0] !== bP[0]) return aP[0] - bP[0]; return (aP[1]||0) - (bP[1]||0);
+    });
+    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
+    showView('signUpContainer');
+    updateSignUpUI();
+    current?.forEach(item => {
+        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
+        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
+    });
 }
 
 window.fillCell = (type, val, color) => {
@@ -182,41 +235,9 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// 나머지 유틸리티 함수들
-function toggleSettings(open) {
-    const sheet = document.getElementById('settingsSheet');
-    const overlay = document.getElementById('settingsOverlay');
-    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
-}
-
-async function openEditTimetable() {
-    toggleSettings(false);
-    state.isEditMode = true;
-    state.signUp.step = 4;
-    showView('loadingView');
-    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
-    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
-        const [aG, aC] = a.split('-').map(Number);
-        const [bG, bC] = b.split('-').map(Number);
-        if (aG !== bG) return aG - bG;
-        return aC - bC;
-    });
-    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-    showView('signUpContainer');
-    updateSignUpUI();
-    current?.forEach(item => {
-        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
-        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
-    });
-}
-
 async function handleNextButton() {
-  const currentStep = state.signUp.step;
-  if (currentStep === 1) {
+  const step = state.signUp.step;
+  if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin?.length !== 4) return alert('확인 필요');
@@ -226,7 +247,7 @@ async function handleNextButton() {
     if (data) return alert('중복된 이름');
     state.signUp.step++; updateSignUpUI();
   } 
-  else if (currentStep < 4) { if (validateStep(currentStep)) { state.signUp.step++; updateSignUpUI(); }} 
+  else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
   else handleFinalSignUpSubmit();
 }
 
@@ -258,8 +279,10 @@ function updateSignUpUI() {
   const nextB = document.getElementById('btnNextStep');
   if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
   else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
-  if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
-  else renderTags(state.signUp.step === 2 ? 'sub' : 'gc');
+  
+  if (state.signUp.step === 2) renderTags('sub', 'subTagContainer');
+  else if (state.signUp.step === 3) renderTags('gc', 'gcTagContainer');
+  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
 }
 
 function validateStep(step) {
@@ -291,7 +314,7 @@ async function fetchTimetable() {
     const today = records.data?.find(r => r.period == item.period);
     const card = document.createElement('div');
     card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
-    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-plus-circle'}"></i></div>`;
+    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
     card.addEventListener('click', () => {
       state.selectedItem = item;
       document.getElementById('sheetBadge').innerText = item.grade_class;
