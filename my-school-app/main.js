@@ -1,17 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 1. Supabase 설정
+// 1. Supabase 연동 설정
 const supabaseUrl = 'https://gckplcpwrvabhqqohuib.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja3BsY3B3cnZhYmhxcW9odWliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDI3NTYsImV4cCI6MjA5NDQ3ODc1Nn0.rg9p24pmgeAIe6EcNZjIFEePXtpesnOnOZRlQKyUcuU';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- 전역 상태 ---
+// --- 애플리케이션 전역 상태 ---
 let state = {
   user: JSON.parse(localStorage.getItem('cf_user')) || null,
   activeDate: new Date(),
   signUp: { step: 1, subs: [], gcs: [] },
   activeCell: null, 
-  maxPeriods: 7, // 기본 7교시
+  maxPeriods: 7, 
   isSheetOpen: false
 };
 
@@ -26,7 +26,8 @@ window.onload = () => {
 
 function showView(id) {
   document.querySelectorAll('section, main, #loadingView').forEach(v => v.classList.add('hidden'));
-  document.getElementById(id)?.classList.remove('hidden');
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
 }
 
 function initApp() {
@@ -53,11 +54,9 @@ function initEvents() {
   });
 
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
-
   document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
   document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
   
-  // 교시 조절 버튼
   document.getElementById('btnAddPeriod')?.addEventListener('click', () => {
     if (state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(); }
   });
@@ -76,24 +75,31 @@ function initEvents() {
   });
 }
 
-// --- 회원가입 로직 ---
+// --- 회원가입 단계 이동 로직 ---
 async function handleNextButton() {
   const currentStep = state.signUp.step;
 
   if (currentStep === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
-    if (!name || pin?.length !== 4) return alert('성함과 비번 4자리를 확인해주세요.');
+    if (!name || pin?.length !== 4) return alert('성함과 비밀번호 4자리를 확인해주세요.');
 
     showView('loadingView');
-    const { data, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
-    showView('signUpContainer');
-
-    if (error) return alert('연결 오류가 발생했습니다.');
-    if (data) return alert('이미 사용 중인 이름입니다.');
-
-    state.signUp.step++;
-    updateSignUpUI();
+    try {
+      const { data, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        alert('이미 사용 중인 이름입니다. 다른 이름을 선택해주세요.');
+        showView('signUpContainer');
+        return;
+      }
+      state.signUp.step++;
+      updateSignUpUI();
+      showView('signUpContainer');
+    } catch (err) {
+      alert('연결 오류가 발생했습니다: ' + err.message);
+      showView('signUpContainer');
+    }
   } 
   else if (currentStep < 4) {
     if (validateStep(currentStep)) { state.signUp.step++; updateSignUpUI(); }
@@ -103,11 +109,65 @@ async function handleNextButton() {
   }
 }
 
+// [수정 포인트] 오타 수정 및 에러 로깅 강화
+async function handleFinalSignUpSubmit() {
+  const name = document.getElementById('regName')?.value.trim();
+  const pin = document.getElementById('regPin')?.value.trim();
+  
+  showView('loadingView');
+  const loadingMsg = document.getElementById('loadingMsg');
+  if (loadingMsg) loadingMsg.innerText = "데이터를 저장하고 있습니다...";
+
+  try {
+    // 1. 프로필 생성
+    const { error: profError } = await supabase.from('profiles').insert({ name, pin });
+    if (profError) throw profError;
+
+    // 2. 시간표 데이터 수집
+    const timetableData = []; // 변수명 일치시킴
+    const days = ['월','화','수','목','금'];
+    
+    days.forEach(d => {
+      for (let p = 1; p <= state.maxPeriods; p++) {
+        const sub = document.querySelector(`.sub-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
+        const gc = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
+        
+        // 초기값("과목", "반")이 아닐 때만 저장
+        if (sub && sub !== '과목' && gc && gc !== '반') {
+          timetableData.push({ 
+            user_name: name, 
+            day: d, 
+            period: p, 
+            subject: sub, 
+            grade_class: gc 
+          });
+        }
+      }
+    });
+
+    // 3. 시간표 데이터가 있다면 저장
+    if (timetableData.length > 0) {
+      const { error: timeError } = await supabase.from('basic_timetable').insert(timetableData);
+      if (timeError) throw timeError;
+    }
+
+    alert('환영합니다! 가입이 완료되었습니다. 로그인해 주세요.');
+    location.reload();
+
+  } catch (err) {
+    console.error("Signup Crash:", err);
+    alert('가입 처리 중 오류가 발생했습니다: ' + (err.message || '알 수 없는 서버 오류'));
+    showView('signUpContainer'); // 로딩창 닫고 가입 화면으로 복귀
+  }
+}
+
 function updateSignUpUI() {
   document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
-  document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
-  document.getElementById('btnNextStep').innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로';
+  const progress = document.getElementById('signUpProgress');
+  if (progress) progress.style.width = `${(state.signUp.step / 4) * 100}%`;
+  const nextBtn = document.getElementById('btnNextStep');
+  if (nextBtn) nextBtn.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로';
   if (state.signUp.step === 4) renderSetupGrid();
 }
 
@@ -117,7 +177,6 @@ function validateStep(step) {
   return true;
 }
 
-// --- 그리드 관리 ---
 function addTag(type) {
   const input = document.getElementById(type === 'sub' ? 'subInput' : 'gcInput');
   const val = input?.value.trim();
@@ -152,7 +211,7 @@ function renderSetupGrid() {
 
   for (let p = 1; p <= state.maxPeriods; p++) {
     const row = document.createElement('tr');
-    row.innerHTML = `<td class="text-center font-bold text-slate-900 text-[12px] bg-slate-50">${p}</td>` + 
+    row.innerHTML = `<td class="header-cell text-center font-bold text-slate-900 text-[12px] bg-slate-50">${p}</td>` + 
       ['월','화','수','목','금'].map(d => `
       <td class="p-1">
         <div class="flex flex-col gap-1">
@@ -200,35 +259,15 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-async function handleFinalSignUpSubmit() {
-  const name = document.getElementById('regName')?.value.trim();
-  const pin = document.getElementById('regPin')?.value.trim();
-  showView('loadingView');
-
-  const { error } = await supabase.from('profiles').insert({ name, pin });
-  if (error) { alert('가입 오류'); showView('signUpContainer'); return; }
-
-  const timetable = [];
-  ['월','화','수','목','금'].forEach(d => {
-    for (let p = 1; p <= state.maxPeriods; p++) {
-      const sub = document.querySelector(`.sub-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
-      const gc = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
-      if (sub !== '과목' && gc !== '반') {
-        timetableData.push({ user_name: name, day: d, period: p, subject: sub, grade_class: gc });
-      }
-    }
-  });
-  if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
-  alert('가입 완료! 로그인해주세요.'); location.reload();
-}
-
-// --- 로그인 및 대시보드 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
-  if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-  else alert('정보를 확인해주세요.');
+  if (data) {
+    state.user = data;
+    localStorage.setItem('cf_user', JSON.stringify(data));
+    initApp();
+  } else alert('정보를 확인해주세요.');
 }
 
 async function fetchTimetable() {
@@ -236,15 +275,20 @@ async function fetchTimetable() {
   const dayName = ['일', '월', '화', '수', '목', '금', '토'][state.activeDate.getDay()];
   const list = document.getElementById('timetableList');
   if (!list) return;
+
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
+
   const [basic, records] = await Promise.all([
     supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName),
     supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
   ]);
-  list.innerHTML = basic.data?.length ? '' : `<div class="py-20 text-center text-slate-400 font-bold">수업이 없습니다.</div>`;
+
+  list.innerHTML = basic.data?.length ? '' : `<div class="py-20 text-center text-slate-400 font-bold">오늘은 수업이 없습니다 ☕️</div>`;
+  
   for (const item of basic.data || []) {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
+    
     const card = document.createElement('div');
     card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-transform cursor-pointer";
     card.innerHTML = `
@@ -257,7 +301,7 @@ async function fetchTimetable() {
         <p class="text-[11px] font-bold text-slate-400 mt-2">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p>
       </div>
       <div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl">
-        <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-plus-circle'}"></i>
+        <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i>
       </div>`;
     card.addEventListener('click', () => {
       state.selectedItem = item;
@@ -281,7 +325,7 @@ async function saveProgress() {
   const c = document.getElementById('progContent')?.value.trim();
   const n = document.getElementById('progNote')?.value.trim();
   const d = state.activeDate.toISOString().split('T')[0];
-  if (!c) return;
+  if (!c) return alert('진도 내용을 입력해 주세요.');
   await supabase.from('lesson_records').upsert({
     user_name: state.user.name, date: d, period: state.selectedItem.period,
     grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: c, note: n || '-'
