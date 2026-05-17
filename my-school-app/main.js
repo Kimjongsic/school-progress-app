@@ -41,7 +41,10 @@ async function initApp() {
   const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
   if (current) {
     state.signUp.subs = [...new Set(current.map(i => i.subject))];
-    state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
+    state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort((a, b) => {
+        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
+        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
+    });
   }
 
   updateDateUI();
@@ -59,7 +62,7 @@ function initEvents() {
   
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
     if (state.isEditMode) {
-      if(confirm('수정 중인 내용이 사라집니다. 취소할까요?')) initApp();
+      if(confirm('수정 중인 내용이 저장되지 않았습니다. 나갈까요?')) initApp();
     } else { showView('loginView'); }
   });
 
@@ -79,14 +82,9 @@ function initEvents() {
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   
-  // 4. 날짜 텍스트 그룹 클릭 시 달력 열기 보강
   document.getElementById('dateTextGroup')?.addEventListener('click', () => {
     const picker = document.getElementById('datePicker');
-    if (picker && typeof picker.showPicker === 'function') {
-        picker.showPicker();
-    } else {
-        picker.click(); // 폴백
-    }
+    if (picker && typeof picker.showPicker === 'function') picker.showPicker();
   });
   
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
@@ -145,7 +143,7 @@ window.submitInlineInput = (type, containerId) => {
         const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
         if(!arr.includes(val)) {
             arr.push(val);
-            if (type === 'gc') arr.sort((a,b) => { const aP=a.split('-').map(Number); const bP=b.split('-').map(Number); return aP[0]!==bP[0]?aP[0]-bP[0]:(aP[1]||0)-(bP[1]||0); });
+            if (type === 'gc') arr.sort((a,b) => { const aP=a.split('-').map(Number); const bP=b.split('-').map(Number); return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); });
         }
     }
     window.renderTags(type, containerId);
@@ -208,7 +206,7 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// 4. 대시보드 렌더링 및 크기/아이콘/색상 수정
+// --- [개선] 대시보드 정렬 및 색상 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -223,7 +221,6 @@ async function fetchTimetable() {
 
   if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
 
-  // [수정] 한 번에 로드하기 위해 병렬로 HTML 생성
   const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
@@ -237,21 +234,21 @@ async function fetchTimetable() {
         <div class="flex items-center justify-between mb-5">
           <div class="flex items-center gap-3">
             <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
-            <span class="px-2.5 py-1 rounded-full text-[11px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
+            <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
           <div class="w-10 h-10 rounded-2xl ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-xl">
             <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-pen-to-square'}"></i>
           </div>
         </div>
-        <div class="space-y-2 pl-1 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-          <div class="flex gap-2">
-            <span class="text-[9px] font-black text-slate-300 w-10 shrink-0">LAST</span>
-            <p class="text-[11px] font-bold text-slate-500 line-clamp-1">${prev?.content || '-'}</p>
+        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+          <div class="flex items-start gap-3">
+            <span class="text-[9px] font-black text-slate-400 w-10 shrink-0 mt-0.5 tracking-widest">LAST</span>
+            <p class="text-[12px] font-bold text-slate-500 line-clamp-1 flex-1 leading-tight">${prev?.content || '-'}</p>
           </div>
-          <div class="flex gap-2">
-            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 uppercase">Today</span>
-            <p class="text-[12px] font-black text-slate-700 line-clamp-1">${today ? today.content : '<span class="text-slate-200 font-medium italic text-[11px]">입력 전</span>'}</p>
+          <div class="flex items-start gap-3">
+            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 mt-0.5 tracking-widest">TODAY</span>
+            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-tight">${today ? today.content : '<span class="text-slate-200 font-medium italic">입력 전입니다</span>'}</p>
           </div>
         </div>
       </div>`;
@@ -262,15 +259,14 @@ async function fetchTimetable() {
 
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
-  
-  // 3. 입력창 상단 태그 렌더링 (대시보드와 동일 디자인)
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
   const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
   
+  // 3. 입력창 상단 태그 디자인 일치
   const tagHtml = `
-    <span class="text-[12px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
-    <span class="px-3 py-1 rounded-full text-[12px] font-black text-white" style="background:${subColor}">${item.subject}</span>
-    <span class="px-3 py-0.5 rounded-full text-[11px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+    <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
+    <span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white" style="background:${subColor}">${item.subject}</span>
+    <span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
   `;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   
@@ -280,23 +276,19 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   toggleSheet(true);
 };
 
+// --- 나머지 데이터 저장 및 공통 로직 ---
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
 
-  if (!content) return alert('내용을 입력해 주세요.');
+  if (!content) return alert('진도 내용을 입력해 주세요.');
   
   showView('loadingView');
   try {
     const { error } = await supabase.from('lesson_records').upsert({
-      user_name: state.user.name,
-      date: dateStr,
-      period: state.selectedItem.period,
-      grade_class: state.selectedItem.grade_class,
-      subject: state.selectedItem.subject,
-      content: content,
-      note: note || '-'
+      user_name: state.user.name, date: dateStr, period: state.selectedItem.period,
+      grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-'
     }, { onConflict: 'user_name, date, period, grade_class, subject' });
 
     if (error) throw error;
@@ -309,7 +301,6 @@ async function saveProgress() {
   }
 }
 
-// --- 유틸리티 및 인증 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
@@ -359,7 +350,10 @@ async function openEditTimetable() {
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
+        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
+        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
+    });
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
     showView('signUpContainer'); updateSignUpUI();
     current?.forEach(item => {
@@ -380,7 +374,7 @@ function updateSignUpUI() {
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
       document.getElementById('progressWrapper').classList.add('hidden');
-      setupT.innerText = "전체 시간표"; // 6, 7. 문구 수정
+      setupT.innerText = "전체 시간표";
       nextB.innerText = "수정 완료";
   } else {
       if(backB) backB.style.display = 'flex';
