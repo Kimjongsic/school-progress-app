@@ -12,9 +12,7 @@ let state = {
   isSheetOpen: false
 };
 
-// 과목 색상 (진한 색 위주)
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
-// 학년 색상 (연한 색 + 폰트색 구분)
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
 window.onload = () => {
@@ -44,29 +42,54 @@ function initEvents() {
     showView('signUpContainer');
   });
 
-  // 엔터 키 추가 기능 보완 (KeyPress 이벤트 추가)
-  document.getElementById('subInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addTag('sub'); }
-  });
-  document.getElementById('gcInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addTag('gc'); }
-  });
+  // 엔터 키 이벤트 확실하게 바인딩
+  document.getElementById('subInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('sub'); }});
+  document.getElementById('gcInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('gc'); }});
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
     if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }
   });
 
-  document.getElementById('btnNextStep')?.addEventListener('click', () => {
-    if (state.signUp.step < 4) {
-      if (validateStep(state.signUp.step)) { state.signUp.step++; updateSignUpUI(); }
-    } else handleFinalSignUpSubmit();
-  });
+  // 다음 버튼 클릭 시 단계별 로직 (1단계 중복체크 포함)
+  document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
 
   document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
   document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.querySelectorAll('.btnCloseSheet').forEach(btn => btn.addEventListener('click', () => toggleSheet(false)));
   document.getElementById('btnLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
+}
+
+// 다음 버튼 통합 제어 로직
+async function handleNextButton() {
+  const currentStep = state.signUp.step;
+
+  if (currentStep === 1) {
+    const name = document.getElementById('regName')?.value.trim();
+    const pin = document.getElementById('regPin')?.value.trim();
+    if (!name || pin?.length !== 4) return alert('성함과 비밀번호 4자리를 확인해주세요.');
+
+    // 1단계에서 즉시 중복 체크 수행
+    showView('loadingView');
+    const { data, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+    showView('signUpContainer');
+
+    if (error) return alert('데이터 조회 중 오류가 발생했습니다: ' + error.message);
+    if (data) return alert('이미 사용 중인 이름입니다. 다른 이름을 입력해주세요.');
+
+    // 중복 없으면 다음 단계로
+    state.signUp.step++;
+    updateSignUpUI();
+  } 
+  else if (currentStep < 4) {
+    if (validateStep(currentStep)) { 
+      state.signUp.step++; 
+      updateSignUpUI(); 
+    }
+  } 
+  else {
+    handleFinalSignUpSubmit();
+  }
 }
 
 function addTag(type) {
@@ -76,6 +99,7 @@ function addTag(type) {
   const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
   if (!arr.includes(val)) { arr.push(val); renderTags(type); }
   input.value = '';
+  input.focus();
 }
 
 function renderTags(type) {
@@ -103,13 +127,11 @@ function renderSetupGrid() {
 
   for (let p = 1; p <= 7; p++) {
     const row = document.createElement('tr');
-    row.innerHTML = `<td class="text-[12px] font-black text-slate-900 text-center pb-1">${p}</td>` + 
+    row.innerHTML = `<td class="header-cell text-center">${p}</td>` + 
       ['월','화','수','목','금'].map(d => `
-      <td>
-        <div class="flex flex-col gap-1">
-          <button class="setup-in sub-cell" data-day="${d}" data-p="${p}">과목</button>
-          <button class="setup-in gc-cell" data-day="${d}" data-p="${p}">반</button>
-        </div>
+      <td class="p-0">
+        <button class="setup-in sub-cell border-b border-slate-100" data-day="${d}" data-p="${p}">과목</button>
+        <button class="setup-in gc-cell" data-day="${d}" data-p="${p}">반</button>
       </td>`).join('');
     body.appendChild(row);
   }
@@ -134,17 +156,22 @@ function renderSetupGrid() {
   });
 }
 
+// 자동 포커스 이동 기능 강화
 window.fillCell = (type, val, color) => {
   if (!state.activeCell || state.activeCell.type !== type) return;
-  const target = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
-  if (target) {
-    target.innerText = val;
+  
+  const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+  if (current) {
+    current.innerText = val;
     if (type === 'sub') {
-      target.style.background = color;
-      target.classList.add('sub-filled');
+      current.style.background = color;
+      current.classList.add('sub-filled');
+      // 과목 입력 후 바로 아래 '반' 셀 자동 선택
+      const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+      if (nextGc) nextGc.click();
     } else {
-      target.style.color = color;
-      target.classList.add('gc-filled');
+      current.style.color = color;
+      current.classList.add('gc-filled');
     }
   }
 };
@@ -153,8 +180,14 @@ async function handleFinalSignUpSubmit() {
   const name = document.getElementById('regName')?.value.trim();
   const pin = document.getElementById('regPin')?.value.trim();
   showView('loadingView');
+
+  // 최종 가입 처리 (1단계에서 중복체크를 이미 했으므로 여기서는 삽입만 수행)
   const { error } = await supabase.from('profiles').insert({ name, pin });
-  if (error) { alert('중복된 이름입니다.'); showView('signUpContainer'); return; }
+  if (error) {
+    alert(`가입 중 오류가 발생했습니다: ${error.message}`);
+    showView('signUpContainer');
+    return;
+  }
 
   const timetable = [];
   ['월','화','수','목','금'].forEach(d => {
@@ -165,7 +198,7 @@ async function handleFinalSignUpSubmit() {
     }
   });
   if (timetable.length) await supabase.from('basic_timetable').insert(timetable);
-  alert('가입 완료!'); location.reload();
+  alert('가입이 성공적으로 완료되었습니다!'); location.reload();
 }
 
 function updateSignUpUI() {
@@ -177,12 +210,8 @@ function updateSignUpUI() {
 }
 
 function validateStep(step) {
-  if (step === 1) {
-    const n = document.getElementById('regName')?.value.trim();
-    const p = document.getElementById('regPin')?.value.trim();
-    if (!n || p?.length !== 4) { alert('성함과 비번 4자리를 확인해주세요.'); return false; }
-  } else if (step === 2 && !state.signUp.subs.length) return false;
-  else if (step === 3 && !state.signUp.gcs.length) return false;
+  if (step === 2 && !state.signUp.subs.length) { alert('과목을 하나 이상 등록해주세요.'); return false; }
+  else if (step === 3 && !state.signUp.gcs.length) { alert('학급을 하나 이상 등록해주세요.'); return false; }
   return true;
 }
 
@@ -191,6 +220,7 @@ async function handleLogin() {
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
+  else { alert('성함 혹은 비밀번호를 다시 확인해주세요.'); }
 }
 
 async function fetchTimetable() {

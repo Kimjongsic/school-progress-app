@@ -13,19 +13,21 @@
     .tag-chip { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     
-    /* 시간표 그리드 최적화 */
-    .setup-table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 3px; }
-    .setup-in { 
-      width: 100%; border-radius: 10px; border: 1.5px solid #F1F5F9; 
-      padding: 7px 0; text-align: center; font-size: 11px; font-weight: 800; 
-      background: #F8FAFC; color: #CBD5E0; transition: all 0.2s; cursor: pointer;
-    }
-    .setup-in.active-cell { border: 2.5px solid #005CC5 !important; background: white; z-index: 10; }
+    /* 시간표 그리드: 테두리 및 레이아웃 */
+    .setup-table { table-layout: fixed; width: 100%; border-collapse: collapse; background: white; }
+    .setup-table th, .setup-table td { border: 1px solid #E2E8F0; vertical-align: middle; position: relative; }
+    .header-cell { background: #F1F5F9; color: #1E293B; font-weight: 800; font-size: 12px; }
     
-    /* 과목: 진한 배경 + 흰색 글자 (가독성) */
-    .sub-filled { color: white !important; text-shadow: 0 1px 2px rgba(0,0,0,0.1); border: none !important; }
-    /* 학년반: 연한 배경 + 테두리 (구분감) */
-    .gc-filled { background: white !important; border: 2px solid currentColor !important; font-weight: 900 !important; }
+    .setup-in { 
+      width: 100%; border: none; padding: 10px 0; text-align: center; font-size: 11px; 
+      font-weight: 800; background: transparent; color: #CBD5E0; transition: all 0.1s; cursor: pointer;
+    }
+    .setup-in.active-cell { background: #EBF8FF !important; color: #005CC5 !important; box-shadow: inset 0 0 0 2px #005CC5; z-index: 5; }
+    
+    /* 과목: 진한 배경 + 흰색 글자 */
+    .sub-filled { color: white !important; font-weight: 900 !important; }
+    /* 학년반: 테두리 + 파스텔톤 글자 */
+    .gc-filled { background: white !important; font-weight: 900 !important; }
 
     input:focus { border-color: #005CC5; box-shadow: 0 0 0 4px rgba(0, 92, 197, 0.05); outline: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -33,10 +35,11 @@
 </head>
 <body class="text-slate-900 select-none">
 
-  <div id="app" class="max-w-md mx-auto min-h-screen relative flex flex-col bg-white shadow-2xl shadow-slate-200">
+  <div id="app" class="max-w-md mx-auto min-h-screen relative flex flex-col bg-white shadow-2xl">
     
-    <div id="loadingView" class="view-transition hidden fixed inset-0 z-[200] bg-white/80 backdrop-blur-md flex flex-col items-center justify-center">
+    <div id="loadingView" class="view-transition hidden fixed inset-0 z-[200] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center">
       <i class="fa-solid fa-spinner fa-spin text-4xl text-[#005CC5]"></i>
+      <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm">확인 중입니다...</p>
     </div>
 
     <section id="loginView" class="view-transition hidden fixed inset-0 z-50 bg-white flex flex-col justify-center px-10">
@@ -50,7 +53,7 @@
       <div class="space-y-3">
         <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold">
         <input type="password" id="loginPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-bold">
-        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg mt-4 shadow-xl shadow-blue-100 active:scale-95 transition-transform">로그인</button>
+        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg mt-4 shadow-xl active:scale-95 transition-transform">로그인</button>
         <button id="btnOpenSignUp" class="w-full text-slate-400 font-bold py-4 text-sm">처음이신가요? 회원가입</button>
       </div>
     </section>
@@ -68,7 +71,7 @@
 
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
         <div id="step1" class="signUpStep">
-          <h2 class="text-2xl font-black mb-2 text-slate-900">반갑습니다!<br>성함이 어떻게 되시나요?</h2>
+          <h2 class="text-2xl font-black mb-2 text-slate-900">성함과 비밀번호를<br>설정해주세요.</h2>
           <div class="mt-8 space-y-4">
             <input type="text" id="regName" placeholder="이름 (예: 김수학)" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold">
             <input type="password" id="regPin" maxlength="4" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold">
@@ -76,18 +79,16 @@
         </div>
 
         <div id="step2" class="signUpStep hidden">
-          <h2 class="text-2xl font-black mb-2 text-slate-900">어떤 과목들을<br>가르치시나요?</h2>
-          <p class="text-slate-400 mb-6 font-bold text-sm">입력 후 엔터를 누르세요.</p>
+          <h2 class="text-2xl font-black mb-2 text-slate-900">가르치시는 과목을<br>모두 입력해주세요.</h2>
           <div class="flex gap-2 mb-4">
-            <input type="text" id="subInput" placeholder="과목명 (예: 미적분)" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
+            <input type="text" id="subInput" placeholder="과목명 (엔터로 추가)" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
             <button id="btnAddSub" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>
           </div>
           <div id="subTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="step3" class="signUpStep hidden">
-          <h2 class="text-2xl font-black mb-2 text-slate-900">담당하시는 반을<br>알려주세요.</h2>
-          <p class="text-slate-400 mb-6 font-bold text-sm">예: 2-1 (입력 후 엔터)</p>
+          <h2 class="text-2xl font-black mb-2 text-slate-900">담당하시는 학급을<br>입력해주세요.</h2>
           <div class="flex gap-2 mb-4">
             <input type="text" id="gcInput" placeholder="학년-반 (예: 2-6)" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold">
             <button id="btnAddGc" class="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>
@@ -97,23 +98,21 @@
 
         <div id="step4" class="signUpStep hidden">
           <h2 class="text-xl font-black mb-4 text-slate-900 text-center">기초 시간표 완성</h2>
-          
           <div class="bg-slate-50 p-4 rounded-[24px] mb-4 space-y-3">
             <div id="quickSubSection" class="flex flex-wrap gap-1.5 justify-center"></div>
             <div class="h-px bg-slate-200 mx-4"></div>
             <div id="quickGcSection" class="flex flex-wrap gap-1.5 justify-center"></div>
           </div>
-
           <div class="w-full">
             <table class="setup-table">
               <thead>
-                <tr>
-                  <th class="w-6"></th>
-                  <th class="text-[12px] font-black text-slate-900 pb-2">월</th>
-                  <th class="text-[12px] font-black text-slate-900 pb-2">화</th>
-                  <th class="text-[12px] font-black text-slate-900 pb-2">수</th>
-                  <th class="text-[12px] font-black text-slate-900 pb-2">목</th>
-                  <th class="text-[12px] font-black text-slate-900 pb-2">금</th>
+                <tr class="header-cell">
+                  <th class="w-6 py-2"></th>
+                  <th class="text-[12px]">월</th>
+                  <th class="text-[12px]">화</th>
+                  <th class="text-[12px]">수</th>
+                  <th class="text-[12px]">목</th>
+                  <th class="text-[12px]">금</th>
                 </tr>
               </thead>
               <tbody id="setupTableBody"></tbody>
@@ -131,7 +130,7 @@
       <header class="p-8 bg-white flex justify-between items-end">
         <div>
           <h2 id="currentDateDisplay" class="text-2xl font-black text-slate-900">...</h2>
-          <p class="text-[#005CC5] font-black text-sm uppercase mt-1"><span id="userNameDisplay">...</span> 선생님</p>
+          <p class="text-[#005CC5] font-black text-sm mt-1"><span id="userNameDisplay">...</span> 선생님</p>
         </div>
         <div class="flex gap-2">
           <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 relative">
@@ -146,14 +145,14 @@
 
     <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300">
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
-        <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-8"></div>
+        <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
         <header class="mb-8">
           <span id="sheetBadge" class="text-[10px] font-black bg-blue-50 text-[#005CC5] px-2 py-1 rounded-md mb-2 inline-block">학년반</span>
           <h3 id="sheetTitle" class="text-2xl font-black text-slate-900">진도 기록</h3>
         </header>
         <div class="space-y-6">
           <div class="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-2">지난 수업 내용</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">지난 수업 내용</p>
             <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
           </div>
           <input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-50 border-none font-bold">
