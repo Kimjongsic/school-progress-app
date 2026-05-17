@@ -16,7 +16,7 @@ let state = {
   selectedMoveItem: null
 };
 
-let deferredPrompt; 
+let deferredPrompt; // PWA 설치 프롬프트 보관용
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
@@ -48,7 +48,7 @@ async function initApp() {
   }
   updateDateUI(); fetchTimetable();
 
-  // PWA 버튼 노출 체크 (iOS 전용)
+  // [PWA] iOS 수동 설치 유도 체크
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   if (isIOS && !isStandalone) {
@@ -80,27 +80,23 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
 
-  // PWA [홈 화면에 추가] 로직
-  const installBtn = document.getElementById('btnInstallPWA');
+  // [PWA 핵심] 안드로이드/PC용 설치 신호 감지
   window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault(); deferredPrompt = e;
-    installBtn?.classList.remove('hidden');
-    console.log('✅ PWA 설치 신호 감지');
+    e.preventDefault(); 
+    deferredPrompt = e;
+    document.getElementById('btnInstallPWA')?.classList.remove('hidden');
+    console.log('✅ 홈 화면 추가 신호 감지됨');
   });
 
-  installBtn?.addEventListener('click', async () => {
+  document.getElementById('btnInstallPWA')?.addEventListener('click', async () => {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') installBtn.classList.add('hidden');
+      if (outcome === 'accepted') document.getElementById('btnInstallPWA').classList.add('hidden');
       deferredPrompt = null;
-    } else {
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        document.getElementById('iosInstallGuide')?.classList.remove('hidden');
-      } else {
-        alert('이미 설치되어 있거나 브라우저 메뉴의 [홈 화면에 추가]를 사용해 주세요.');
-      }
+    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      document.getElementById('iosInstallGuide')?.classList.remove('hidden');
     }
   });
 
@@ -153,10 +149,7 @@ window.submitInlineInput = (type, containerId) => {
     const val = input?.value.trim();
     if (val) {
         const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-        if(!arr.includes(val)) {
-            arr.push(val);
-            if (type === 'gc') arr.sort();
-        }
+        if(!arr.includes(val)) { arr.push(val); if (type === 'gc') arr.sort(); }
     }
     window.renderTags(type, containerId);
     if(state.isEditMode) renderSetupGrid(true);
@@ -288,11 +281,8 @@ async function handleConfirmMove() {
             supabase.from('lesson_changes').select('*').eq('user_name', state.user.name).eq('date', targetDate).eq('period', targetPeriod)
         ]);
         let isOccupied = false;
-        if (targetBasic.data) {
-            if (!targetChanges.data?.some(c => c.change_type === 'cancelled')) isOccupied = true;
-        }
+        if (targetBasic.data) { if (!targetChanges.data?.some(c => c.change_type === 'cancelled')) isOccupied = true; }
         if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
-
         if (isOccupied) { alert('해당 시간대에 이미 수업이 배정되어 있습니다.'); showView('mainView'); return; }
 
         await supabase.from('lesson_changes').insert([
@@ -351,7 +341,6 @@ async function handleLogin() {
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-  else alert('정보가 올바르지 않습니다.');
 }
 
 async function handleNextButton() {

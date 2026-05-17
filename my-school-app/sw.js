@@ -3,7 +3,10 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
+self.addEventListener('activate', (e) => {
+  return self.clients.claim();
+});
+
 self.addEventListener('fetch', (e) => {
-  // 설치 버튼을 활성화하기 위한 최소한의 코드
-  return;
+  // PWA 요건 충족을 위한 빈 핸들러
 });
