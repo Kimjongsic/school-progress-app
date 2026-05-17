@@ -12,7 +12,7 @@ let state = {
   maxPeriods: 7, 
   isSheetOpen: false,
   isEditMode: false,
-  isTagEditMode: false // 칩 편집 모드 여부 추가
+  isTagEditMode: false
 };
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
@@ -47,9 +47,17 @@ function initEvents() {
   });
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
-  document.getElementById('btnSignUpClose')?.addEventListener('click', () => state.isEditMode ? initApp() : showView('loginView'));
-  document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
+  
+  // [수정 1] X버튼 클릭 시 초기화 (수정 완료 안하면 취소)
+  document.getElementById('btnSignUpClose')?.addEventListener('click', () => {
+    if (state.isEditMode) {
+      if(confirm('수정한 내용이 저장되지 않습니다. 나갈까요?')) initApp();
+    } else {
+      showView('loginView');
+    }
+  });
 
+  document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   document.getElementById('btnAddPeriod')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true); }});
   document.getElementById('btnRemovePeriod')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true); }});
 
@@ -60,20 +68,16 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
+  document.querySelectorAll('.btnCloseSheet').forEach(btn => btn.addEventListener('click', () => toggleSheet(false)));
+
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
 }
 
-// 편집 모드 토글 함수
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
-    ['btnEditTagsStep2', 'btnEditTagsStep3', 'btnEditTagsStep4'].forEach(id => {
-        const btn = document.getElementById(id);
-        if(btn) btn.innerText = btnText;
-    });
-    
-    // 현재 화면 다시 그리기
+    ['btnEditTagsStep2', 'btnEditTagsStep3', 'btnEditTagsStep4'].forEach(id => { if(document.getElementById(id)) document.getElementById(id).innerText = btnText; });
     if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
     else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
     else if (state.signUp.step === 4) renderSetupGrid(true);
@@ -87,24 +91,16 @@ window.renderTags = (type, containerId) => {
     let html = arr.map((tag, i) => {
         const color = type === 'sub' ? subPalette[i % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
-        
         return `
             <div class="tag-chip">
-                ${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm active:scale-75"><i class="fa-solid fa-minus"></i></button>` : ''}
+                ${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}
                 <button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button>
             </div>`;
     }).join('');
 
-    // 편집 모드일 때만 + 버튼 노출
     if (state.isTagEditMode) {
-        html += `
-            <div id="${type}AddContainer" class="flex items-center">
-                <button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus"></i></button>
-                <div id="${type}InputWrap" class="hidden flex items-center gap-1">
-                    <input type="text" id="${type}MiniInput" class="mini-input-chip" placeholder="입력">
-                    <button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-8 h-8 rounded-lg bg-[#005CC5] text-white text-[10px] font-black">확인</button>
-                </div>
-            </div>`;
+        html += `<button id="btnShow${type}Input" onclick="window.showInlineInput('${type}', '${containerId}')" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus"></i></button>
+                 <div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
@@ -115,10 +111,7 @@ window.showInlineInput = (type, containerId) => {
     if(btn) btn.classList.add('hidden');
     if(wrap) wrap.classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput`);
-    if(input) {
-        input.focus();
-        input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); };
-    }
+    if(input) { input.focus(); input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, containerId); }; }
 };
 
 window.submitInlineInput = (type, containerId) => {
@@ -134,26 +127,9 @@ window.submitInlineInput = (type, containerId) => {
 };
 
 window.removeTag = (type, i, containerId) => {
-    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
-    arr.splice(i, 1);
+    (type === 'sub' ? state.signUp.subs : state.signUp.gcs).splice(i, 1);
     window.renderTags(type, containerId);
     if(state.isEditMode) renderSetupGrid(true);
-};
-
-window.fillCell = (type, val, color) => {
-  if (state.isTagEditMode) return; // 편집 모드일 땐 입력 금지
-  if (!state.activeCell || state.activeCell.type !== type) return;
-  const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
-  if (current) {
-    current.innerText = val;
-    if (type === 'sub') {
-      current.style.background = color; current.classList.add('sub-filled');
-      const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
-      if (nextGc) nextGc.click();
-    } else {
-      current.style.color = color; current.classList.add('gc-filled');
-    }
-  }
 };
 
 function renderSetupGrid(keepValues = false) {
@@ -177,13 +153,14 @@ function renderSetupGrid(keepValues = false) {
   saved.forEach(s => {
     const target = document.querySelector(`.${s.type}-cell[data-day="${s.d}"][data-p="${s.p}"]`);
     if(target) {
-        target.innerText = s.val;
+        // [수정 2] 시간표 내 과목명 4글자 제한 (표시용)
+        target.innerText = s.type === 'sub' ? s.val.substring(0, 4) : s.val;
+        target.dataset.fullName = s.val; // 실제 데이터 보관용
         if(s.type === 'sub') { target.style.background = s.color; target.classList.add('sub-filled'); }
         else { target.style.color = s.color; target.classList.add('gc-filled'); }
     }
   });
-  window.renderTags('sub', 'quickSubSection'); 
-  window.renderTags('gc', 'quickGcSection');
+  window.renderTags('sub', 'quickSubSection'); window.renderTags('gc', 'quickGcSection');
   document.querySelectorAll('.setup-in').forEach(btn => btn.addEventListener('click', () => {
     document.querySelectorAll('.setup-in').forEach(b => b.classList.remove('active-cell'));
     btn.classList.add('active-cell');
@@ -191,91 +168,98 @@ function renderSetupGrid(keepValues = false) {
   }));
 }
 
-async function handleLogin() {
-  const n = document.getElementById('loginName')?.value.trim();
-  const p = document.getElementById('loginPin')?.value.trim();
-  const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
-  if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
-}
+window.fillCell = (type, val, color) => {
+  if (state.isTagEditMode) return;
+  if (!state.activeCell || state.activeCell.type !== type) return;
+  const current = document.querySelector(`.${type}-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+  if (current) {
+    // [수정 2] 4글자 제한 적용
+    current.innerText = type === 'sub' ? val.substring(0, 4) : val;
+    current.dataset.fullName = val; 
+    if (type === 'sub') {
+      current.style.background = color; current.classList.add('sub-filled');
+      const nextGc = document.querySelector(`.gc-cell[data-day="${state.activeCell.day}"][data-p="${state.activeCell.p}"]`);
+      if (nextGc) nextGc.click();
+    } else { current.style.color = color; current.classList.add('gc-filled'); }
+  }
+};
 
-async function handleNextButton() {
-  const step = state.signUp.step;
-  if (step === 1) {
-    const name = document.getElementById('regName')?.value.trim();
-    const pin = document.getElementById('regPin')?.value.trim();
-    if (!name || pin?.length !== 4) return alert('확인 필요');
-    showView('loadingView');
-    const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
-    showView('signUpContainer');
-    if (data) return alert('중복된 이름');
-    state.signUp.step++; updateSignUpUI();
-  } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
-  else handleFinalSignUpSubmit();
-}
-
-function updateSignUpUI() {
-  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
-  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
-  const progW = document.getElementById('progressWrapper');
-  const setupT = document.getElementById('setupTitle');
-  const nextB = document.getElementById('btnNextStep');
-  const backB = document.getElementById('btnSignUpBack');
-  
-  // 수정 모드일 때 뒤로가기 숨김
-  if(backB) backB.style.display = state.isEditMode ? 'none' : 'flex';
-
-  if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
-  else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
-  
-  if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
-  else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
-  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
-}
-
-async function openEditTimetable() {
-    toggleSettings(false); state.isEditMode = true; state.isTagEditMode = false; state.signUp.step = 4;
-    showView('loadingView');
-    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
-    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a,b) => { const aP = a.split('-').map(Number); const bP = b.split('-').map(Number); return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0); });
-    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-    showView('signUpContainer'); updateSignUpUI();
-    current?.forEach(item => {
-        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
-        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
-    });
-}
-
+// [수정 4] 일괄 렌더링 함수 추가
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
   const list = document.getElementById('timetableList');
   if (!list) return;
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
+
   const [basic, records] = await Promise.all([
     supabase.from('basic_timetable').select('*').eq('user_name', state.user.name).eq('day', dayName).order('period'),
     supabase.from('lesson_records').select('*').eq('user_name', state.user.name).eq('date', dateStr)
   ]);
-  list.innerHTML = basic.data?.length ? '' : `<div class="py-20 text-center text-slate-400 font-bold">수업이 없습니다.</div>`;
-  for (const item of basic.data || []) {
+
+  if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다.</div>`; return; }
+
+  // 모든 수업의 '이전 진도'를 한 번에 조회 (병렬 처리)
+  const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
-    const card = document.createElement('div');
-    card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
-    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
-    card.addEventListener('click', () => {
-      state.selectedItem = item;
-      document.getElementById('sheetBadge').innerText = item.grade_class;
-      document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
-      document.getElementById('prevProgressText').innerText = prev?.content || '첫 기록';
-      document.getElementById('progContent').value = today ? today.content : '';
-      document.getElementById('progNote').value = today ? today.note : '';
-      toggleSheet(true);
-    });
-    list.appendChild(card);
-  }
+    
+    // [수정 6] 아이콘을 깃털펜에서 '펜' 아이콘으로 변경
+    const iconClass = today ? 'fa-check-circle' : 'fa-pen-to-square';
+    const iconColor = today ? 'text-[#005CC5]' : 'text-slate-200';
+    const iconBg = today ? 'bg-blue-50' : 'bg-slate-50';
+
+    return `
+      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer" 
+           onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase tracking-tighter">${item.period}교시</span>
+            <span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span>
+          </div>
+          <h4 class="text-xl font-black text-slate-900">${item.subject}</h4>
+          <p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1 italic">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p>
+        </div>
+        <div class="w-14 h-14 rounded-[22px] ${iconBg} ${iconColor} flex items-center justify-center text-2xl">
+          <i class="fa-solid ${iconClass}"></i>
+        </div>
+      </div>`;
+  }));
+
+  list.innerHTML = dashboardHTML.join('');
+}
+
+window.openInputSheet = (item, prevContent, todayRec) => {
+  state.selectedItem = item;
+  document.getElementById('sheetBadge').innerText = item.grade_class;
+  document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
+  document.getElementById('prevProgressText').innerText = prevContent;
+  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
+  document.getElementById('progNote').value = todayRec ? todayRec.note : '';
+  toggleSheet(true);
+};
+
+// --- 나머지 데이터 연동 로직 ---
+async function handleLogin() {
+  const n = document.getElementById('loginName')?.value.trim();
+  const p = document.getElementById('loginPin')?.value.trim();
+  const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
+  if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
+  else alert('로그인 실패');
+}
+
+async function handleNextButton() {
+  const step = state.signUp.step;
+  if (step === 1) {
+    const name = document.getElementById('regName')?.value.trim();
+    if (!name) return;
+    showView('loadingView');
+    const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+    showView('signUpContainer');
+    if (data) return alert('이미 사용 중인 이름');
+    state.signUp.step++; updateSignUpUI();
+  } else if (step < 4) { if (validateStep(step)) { state.signUp.step++; updateSignUpUI(); }} 
+  else handleFinalSignUpSubmit();
 }
 
 async function handleFinalSignUpSubmit() {
@@ -287,8 +271,10 @@ async function handleFinalSignUpSubmit() {
     const timetableData = [];
     ['월','화','수','목','금'].forEach(d => {
       for (let p = 1; p <= state.maxPeriods; p++) {
-        const sub = document.querySelector(`.sub-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
-        const gc = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`)?.innerText;
+        const subBtn = document.querySelector(`.sub-cell[data-day="${d}"][data-p="${p}"]`);
+        const gcBtn = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`);
+        const sub = subBtn?.dataset.fullName;
+        const gc = gcBtn?.innerText;
         if (sub && sub !== '과목' && gc && gc !== '반') timetableData.push({ user_name: name, day: d, period: p, subject: sub, grade_class: gc });
       }
     });
@@ -298,11 +284,38 @@ async function handleFinalSignUpSubmit() {
   } catch (err) { alert(err.message); showView('signUpContainer'); }
 }
 
+async function openEditTimetable() {
+    toggleSettings(false); state.isEditMode = true; state.isTagEditMode = false; state.signUp.step = 4;
+    showView('loadingView');
+    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
+    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a,b) => { const aP=a.split('-').map(Number); const bP=b.split('-').map(Number); return aP[0]!==bP[0]?aP[0]-bP[0]:(aP[1]||0)-(bP[1]||0); });
+    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
+    showView('signUpContainer'); updateSignUpUI();
+    current?.forEach(item => {
+        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        if(subCell) { subCell.innerText = item.subject.substring(0,4); subCell.dataset.fullName = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
+        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
+    });
+}
+
+function updateSignUpUI() {
+  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
+  const nextB = document.getElementById('btnNextStep');
+  if(state.isEditMode) { document.getElementById('progressWrapper').classList.add('hidden'); document.getElementById('setupTitle').innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
+  else { document.getElementById('progressWrapper').classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계"; }
+  if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
+  else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
+  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
+}
+
 function toggleSettings(open) {
-    const sheet = document.getElementById('settingsSheet');
-    const overlay = document.getElementById('settingsOverlay');
-    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
+  const s = document.getElementById('settingsSheet');
+  const o = document.getElementById('settingsOverlay');
+  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
 }
 
 function toggleSheet(o) {
@@ -316,11 +329,8 @@ async function saveProgress() {
   const c = document.getElementById('progContent')?.value.trim();
   const n = document.getElementById('progNote')?.value.trim();
   const d = state.activeDate.toISOString().split('T')[0];
-  if (!c) return alert('진도 입력');
-  await supabase.from('lesson_records').upsert({
-    user_name: state.user.name, date: d, period: state.selectedItem.period,
-    grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: c, note: n || '-'
-  }, { onConflict: 'user_name, date, period, grade_class, subject' });
+  if (!c) return alert('진도 입력 필요');
+  await supabase.from('lesson_records').upsert({ user_name: state.user.name, date: d, period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: c, note: n || '-' }, { onConflict: 'user_name, date, period, grade_class, subject' });
   toggleSheet(false); fetchTimetable();
 }
 
@@ -329,13 +339,5 @@ function updateDateUI() {
   if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 }
 
-function moveDate(offset) {
-  state.activeDate.setDate(state.activeDate.getDate() + offset);
-  updateDateUI(); fetchTimetable();
-}
-
-function validateStep(step) {
-  if (step === 2 && !state.signUp.subs.length) return false;
-  if (step === 3 && !state.signUp.gcs.length) return false;
-  return true;
-}
+function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
+function validateStep(step) { if (step === 2 && !state.signUp.subs.length) return false; if (step === 3 && !state.signUp.gcs.length) return false; return true; }
