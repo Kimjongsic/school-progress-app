@@ -44,27 +44,23 @@ function initEvents() {
     updateSignUpUI(); showView('signUpContainer');
   });
 
-  // 태그 추가 엔터 이벤트
-  document.getElementById('subInput')?.addEventListener('keypress', e => e.key === 'Enter' && addTag('sub'));
-  document.getElementById('gcInput')?.addEventListener('keypress', e => e.key === 'Enter' && addTag('gc'));
+  // 버튼 클릭으로 태그 추가
+  document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
+  document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
   
-  // 수정 창 내 즉석 추가 이벤트
-  document.getElementById('editSubIn')?.addEventListener('keypress', e => e.key === 'Enter' && addTag('sub', true));
-  document.getElementById('editGcIn')?.addEventListener('keypress', e => e.key === 'Enter' && addTag('gc', true));
+  // 수정 창 내 등록 버튼
+  document.getElementById('btnEditAddSub')?.addEventListener('click', () => addTag('sub', true));
+  document.getElementById('btnEditAddGc')?.addEventListener('click', () => addTag('gc', true));
 
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => {
     if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }
   });
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => state.isEditMode ? initApp() : showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
-  document.getElementById('btnAddSub')?.addEventListener('click', () => addTag('sub'));
-  document.getElementById('btnAddGc')?.addEventListener('click', () => addTag('gc'));
 
-  // 교시 조절
   document.getElementById('btnAddPeriod')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(); }});
   document.getElementById('btnRemovePeriod')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(); }});
 
-  // 시트/설정 제어
   document.getElementById('sheetOverlay')?.addEventListener('click', () => toggleSheet(false));
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
   document.getElementById('btnSettings')?.addEventListener('click', () => toggleSettings(true));
@@ -78,52 +74,27 @@ function initEvents() {
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
 }
 
-// 설정 메뉴 토글
-function toggleSettings(open) {
-    const sheet = document.getElementById('settingsSheet');
-    const overlay = document.getElementById('settingsOverlay');
-    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
-}
-
-// 시간표 수정 메뉴 실행
-async function openEditTimetable() {
-    toggleSettings(false);
-    state.isEditMode = true;
-    state.signUp.step = 4;
-    showView('loadingView');
-    
-    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
-    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])];
-    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
-
-    showView('signUpContainer');
-    updateSignUpUI();
-
-    current?.forEach(item => {
-        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
-        if(subCell) {
-            subCell.innerText = item.subject; subCell.classList.add('sub-filled');
-            subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length];
-        }
-        if(gcCell) {
-            gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled');
-            gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default;
-        }
-    });
-}
-
-// 태그 추가 로직 (수정 모드 대응)
+// [핵심] 태그 추가 및 자동 정렬 로직
 function addTag(type, isQuick = false) {
     const id = isQuick ? (type === 'sub' ? 'editSubIn' : 'editGcIn') : (type === 'sub' ? 'subInput' : 'gcInput');
     const input = document.getElementById(id);
     const val = input?.value.trim();
     if (!val) return;
-    const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
+
+    let arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
     if (!arr.includes(val)) { 
         arr.push(val); 
+        
+        // 학급 정렬 (1-1, 1-2, 2-1 순)
+        if (type === 'gc') {
+            state.signUp.gcs.sort((a, b) => {
+                const [aG, aC] = a.split('-').map(Number);
+                const [bG, bC] = b.split('-').map(Number);
+                if (aG !== bG) return aG - bG;
+                return aC - bC;
+            });
+        }
+        
         isQuick ? renderSetupGrid(true) : renderTags(type); 
     }
     if (input) input.value = '';
@@ -133,20 +104,25 @@ function renderTags(type) {
   const container = document.getElementById(type === 'sub' ? 'subTagContainer' : 'gcTagContainer');
   const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
   if (container) {
-    container.innerHTML = arr.map((tag, i) => `<div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-lg"><span>${tag}</span><button onclick="window.removeTag('${type}', ${i})"><i class="fa-solid fa-xmark"></i></button></div>`).join('');
+    container.innerHTML = arr.map((tag, i) => `
+      <div class="tag-chip flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
+        <span>${tag}</span>
+        <button onclick="window.removeTag('${type}', ${i})" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>`).join('');
   }
 }
 
 window.removeTag = (type, i) => {
   const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
   arr.splice(i, 1); renderTags(type);
+  if(state.isEditMode) renderSetupGrid(true);
 };
 
+// 시간표 그리드 렌더링
 function renderSetupGrid(keepValues = false) {
   const body = document.getElementById('setupTableBody');
   if (!body) return;
 
-  // 기존 입력값 임시 보관
   const saved = [];
   if(keepValues) {
     document.querySelectorAll('.setup-in').forEach(btn => {
@@ -168,7 +144,6 @@ function renderSetupGrid(keepValues = false) {
     body.appendChild(row);
   }
 
-  // 보관된 값 복구
   saved.forEach(s => {
     const target = document.querySelector(`.${s.type}-cell[data-day="${s.d}"][data-p="${s.p}"]`);
     if(target) {
@@ -207,6 +182,38 @@ window.fillCell = (type, val, color) => {
   }
 };
 
+// 나머지 유틸리티 함수들
+function toggleSettings(open) {
+    const sheet = document.getElementById('settingsSheet');
+    const overlay = document.getElementById('settingsOverlay');
+    if(sheet) sheet.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+    if(overlay) open ? overlay.classList.add('overlay-show') : overlay.classList.remove('overlay-show');
+}
+
+async function openEditTimetable() {
+    toggleSettings(false);
+    state.isEditMode = true;
+    state.signUp.step = 4;
+    showView('loadingView');
+    const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
+    state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
+        const [aG, aC] = a.split('-').map(Number);
+        const [bG, bC] = b.split('-').map(Number);
+        if (aG !== bG) return aG - bG;
+        return aC - bC;
+    });
+    state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
+    showView('signUpContainer');
+    updateSignUpUI();
+    current?.forEach(item => {
+        const subCell = document.querySelector(`.sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        const gcCell = document.querySelector(`.gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
+        if(subCell) { subCell.innerText = item.subject; subCell.classList.add('sub-filled'); subCell.style.background = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length]; }
+        if(gcCell) { gcCell.innerText = item.grade_class; gcCell.classList.add('gc-filled'); gcCell.style.color = gradePalette[item.grade_class[0]] || gradePalette.default; }
+    });
+}
+
 async function handleNextButton() {
   const currentStep = state.signUp.step;
   if (currentStep === 1) {
@@ -228,7 +235,7 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin')?.value.trim();
   showView('loadingView');
   try {
-    if (!state.isEditMode) { await supabase.from('profiles').insert({ name, pin }); }
+    if (!state.isEditMode) await supabase.from('profiles').insert({ name, pin });
     const timetableData = [];
     ['월','화','수','목','금'].forEach(d => {
       for (let p = 1; p <= state.maxPeriods; p++) {
@@ -252,6 +259,7 @@ function updateSignUpUI() {
   if(state.isEditMode) { progW.classList.add('hidden'); setupT.innerText = "전체 시간표 수정"; nextB.innerText = "수정 완료"; }
   else { progW.classList.remove('hidden'); document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`; nextB.innerText = state.signUp.step === 4 ? '가입 완료' : '다음으로'; }
   if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
+  else renderTags(state.signUp.step === 2 ? 'sub' : 'gc');
 }
 
 function validateStep(step) {
@@ -283,7 +291,7 @@ async function fetchTimetable() {
     const today = records.data?.find(r => r.period == item.period);
     const card = document.createElement('div');
     card.className = "bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex justify-between items-center active:scale-95 transition-all cursor-pointer";
-    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-feather-pointed'}"></i></div>`;
+    card.innerHTML = `<div class="flex-1"><div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-black bg-[#005CC5] text-white px-2 py-0.5 rounded-md uppercase">${item.period}교시</span><span class="text-[10px] font-black text-slate-300 uppercase">${item.grade_class}</span></div><h4 class="text-xl font-black text-slate-900">${item.subject}</h4><p class="text-[11px] font-bold text-slate-400 mt-2 line-clamp-1">이전: <span class="text-slate-600">${prev?.content || '-'}</span></p></div><div class="w-14 h-14 rounded-[22px] ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-2xl"><i class="fa-solid ${today ? 'fa-check-circle' : 'fa-plus-circle'}"></i></div>`;
     card.addEventListener('click', () => {
       state.selectedItem = item;
       document.getElementById('sheetBadge').innerText = item.grade_class;
