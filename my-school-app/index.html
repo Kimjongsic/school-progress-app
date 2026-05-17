@@ -8,123 +8,127 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Pretendard', sans-serif; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'Pretendard', sans-serif; -webkit-font-smoothing: antialiased; background-color: #F8FAFC; }
     .glass-morphism { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
-    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    .active-tab { color: #005CC5; }
     .view-transition { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-    input:focus, textarea:focus { border-color: #005CC5; box-shadow: 0 0 0 2px rgba(0, 92, 197, 0.2); outline: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
+    input:focus, textarea:focus { border-color: #005CC5; box-shadow: 0 0 0 2px rgba(0, 92, 197, 0.1); outline: none; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 select-none">
+<body class="text-slate-900 select-none">
 
   <div id="app" class="max-w-md mx-auto min-h-screen relative flex flex-col">
     
+    <div id="loadingView" class="view-transition hidden fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center">
+      <i class="fa-solid fa-circle-notch fa-spin text-4xl text-[#005CC5]"></i>
+      <p class="mt-4 font-bold text-slate-400">잠시만 기다려주세요...</p>
+    </div>
+
     <section id="loginView" class="view-transition hidden fixed inset-0 z-50 bg-white flex flex-col justify-center px-8">
       <div class="mb-10 text-center">
         <div class="inline-block p-4 bg-blue-50 rounded-3xl mb-6">
           <i class="fa-solid fa-book-bookmark text-4xl text-[#005CC5]"></i>
         </div>
         <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Class Flow</h1>
-        <p class="text-slate-500 mt-2">수업 진도 관리를 더 스마트하게</p>
+        <p class="text-slate-500 mt-2">더 스마트한 수업 진도 관리</p>
       </div>
       <div class="space-y-4">
-        <input type="text" id="loginName" placeholder="성함" class="w-full p-4 rounded-2xl bg-slate-100 border-none outline-none focus:bg-white transition-all shadow-sm">
-        <input type="password" id="loginPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl bg-slate-100 border-none outline-none focus:bg-white transition-all shadow-sm">
-        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 active:scale-95 transition-transform">시작하기</button>
-        <button id="btnOpenSignUp" class="w-full text-slate-500 font-medium py-2">아직 계정이 없으신가요?</button>
+        <input type="text" id="loginName" placeholder="선생님 성함" class="w-full p-4 rounded-2xl bg-slate-100 border-none">
+        <input type="password" id="loginPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl bg-slate-100 border-none">
+        <button id="btnLogin" class="w-full bg-[#005CC5] text-white p-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform">로그인</button>
+        <button id="btnOpenSignUp" class="w-full text-slate-400 font-medium py-2">처음이신가요? 회원가입</button>
       </div>
     </section>
 
-    <section id="signUpView" class="view-transition hidden fixed inset-0 z-[60] bg-white px-6 py-12">
-      <header class="flex justify-between items-center mb-10">
-        <button class="btnCloseSignUp text-slate-400 text-2xl"><i class="fa-solid fa-xmark"></i></button>
-        <div class="h-1.5 w-32 bg-slate-100 rounded-full overflow-hidden">
-          <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500" style="width: 33%"></div>
+    <section id="signUpContainer" class="view-transition hidden fixed inset-0 z-[60] bg-white flex flex-col">
+      <header class="p-6 flex justify-between items-center border-bottom border-slate-100">
+        <button id="btnSignUpBack" class="text-slate-400 text-xl"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="flex-1 px-8">
+          <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500" style="width: 33%"></div>
+          </div>
         </div>
-        <div class="w-6"></div>
+        <button id="btnSignUpClose" class="text-slate-300 text-xl"><i class="fa-solid fa-xmark"></i></button>
       </header>
 
-      <div id="step1" class="signUpStep">
-        <h2 class="text-2xl font-bold mb-2">계정 정보를 입력해주세요</h2>
-        <p class="text-slate-500 mb-8">성함과 비밀번호를 설정합니다.</p>
-        <input type="text" id="regName" placeholder="선생님 이름" class="w-full p-4 rounded-2xl border border-slate-200 mb-4">
-        <input type="password" id="regPin" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border border-slate-200 mb-8">
-        <button class="btnNextStep w-full bg-slate-900 text-white p-4 rounded-2xl font-bold" data-next="step2">다음 단계</button>
+      <div class="flex-1 px-8 py-4 overflow-y-auto no-scrollbar">
+        <div id="step1" class="signUpStep">
+          <h2 class="text-2xl font-black mb-2">어떻게 불러드릴까요?</h2>
+          <p class="text-slate-400 mb-8 font-medium">로그인 시 사용할 정보를 입력합니다.</p>
+          <div class="space-y-4">
+            <input type="text" id="regName" placeholder="선생님 성함" class="w-full p-4 rounded-2xl border border-slate-200">
+            <input type="password" id="regPin" maxlength="4" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border border-slate-200">
+          </div>
+        </div>
+
+        <div id="step2" class="signUpStep hidden">
+          <h2 class="text-2xl font-black mb-2">어떤 과목을 가르치시나요?</h2>
+          <p class="text-slate-400 mb-8 font-medium">콤마(,)로 구분하여 입력해주세요.</p>
+          <input type="text" id="regSubs" placeholder="예: 수학, 기하, 미적분" class="w-full p-4 rounded-2xl border border-slate-200">
+        </div>
+
+        <div id="step3" class="signUpStep hidden">
+          <h2 class="text-2xl font-black mb-2">담당하시는 반은 어디인가요?</h2>
+          <p class="text-slate-400 mb-8 font-medium">예: 2-1, 2-6 (콤마로 구분)</p>
+          <input type="text" id="regGcs" placeholder="예: 2-1, 2-2, 2-6" class="w-full p-4 rounded-2xl border border-slate-200">
+        </div>
       </div>
 
-      <div id="step2" class="signUpStep hidden">
-        <h2 class="text-2xl font-bold mb-2">담당 과목을 입력해주세요</h2>
-        <p class="text-slate-500 mb-8">쉼표(,)로 구분하여 여러 개 입력 가능합니다.</p>
-        <input type="text" id="regSubs" placeholder="예: 수학, 기하, 미적분" class="w-full p-4 rounded-2xl border border-slate-200 mb-8">
-        <button class="btnNextStep w-full bg-slate-900 text-white p-4 rounded-2xl font-bold" data-next="step3">다음 단계</button>
-      </div>
-
-      <div id="step3" class="signUpStep hidden">
-        <h2 class="text-2xl font-bold mb-2">담당 학급을 입력해주세요</h2>
-        <p class="text-slate-500 mb-8">예: 2-1, 2-6 (쉼표 구분)</p>
-        <input type="text" id="regGcs" placeholder="예: 2-1, 2-2, 2-6" class="w-full p-4 rounded-2xl border border-slate-200 mb-8">
-        <button id="btnFinalSignUp" class="w-full bg-[#005CC5] text-white p-4 rounded-2xl font-bold">회원가입 완료</button>
-      </div>
+      <footer class="p-8">
+        <button id="btnNextStep" class="w-full bg-slate-900 text-white p-5 rounded-2xl font-bold text-lg active:scale-95 transition-transform">다음으로</button>
+      </footer>
     </section>
 
-    <main id="mainView" class="view-transition flex-1 pb-32">
+    <main id="mainView" class="view-transition hidden flex-1 pb-32">
       <header class="p-6 bg-white flex justify-between items-end">
         <div>
-          <h2 id="currentDateDisplay" class="text-2xl font-extrabold text-slate-900">오늘, 5월 17일</h2>
-          <p class="text-slate-500 font-medium"><span id="userNameDisplay">김종식</span> 선생님</p>
+          <h2 id="currentDateDisplay" class="text-2xl font-black text-slate-900">오늘</h2>
+          <p class="text-slate-400 font-bold"><span id="userNameDisplay">김종식</span> 선생님</p>
         </div>
-        <div class="flex gap-3">
-          <button id="btnCalendar" class="p-3 bg-slate-100 rounded-2xl text-slate-600 relative overflow-hidden">
-            <i class="fa-regular fa-calendar-days text-xl"></i>
-            <input type="date" id="datePicker" class="absolute inset-0 opacity-0 cursor-pointer">
-          </button>
-          <button id="btnLogout" class="p-3 bg-slate-100 rounded-2xl text-slate-600"><i class="fa-solid fa-right-from-bracket"></i></button>
+        <div class="flex gap-2">
+          <div class="p-3 bg-slate-100 rounded-2xl text-slate-500 relative">
+            <i class="fa-solid fa-calendar-day text-xl"></i>
+            <input type="date" id="datePicker" class="absolute inset-0 opacity-0">
+          </div>
+          <button id="btnLogout" class="p-3 bg-slate-100 rounded-2xl text-slate-500"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
         </div>
       </header>
 
-      <div id="timetableList" class="px-6 space-y-4">
+      <div id="timetableList" class="px-6 space-y-4 mt-4">
         </div>
     </main>
 
-    <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[100] transform translate-y-full transition-transform duration-300 ease-out">
-      <div class="bg-white rounded-t-[40px] shadow-2xl px-8 pt-4 pb-10">
-        <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8"></div>
-        <header class="flex justify-between items-start mb-6">
+    <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[100] transform translate-y-full transition-transform duration-300">
+      <div class="bg-white rounded-t-[40px] shadow-2xl px-8 pt-4 pb-12">
+        <div class="w-12 h-1 bg-slate-100 rounded-full mx-auto mb-8"></div>
+        <div class="flex justify-between items-start mb-6">
           <div>
-            <span id="sheetBadge" class="inline-block px-3 py-1 bg-blue-50 text-[#005CC5] text-xs font-bold rounded-full mb-2">1교시 | 2학년 6반</span>
-            <h3 id="sheetTitle" class="text-2xl font-bold text-slate-900">수학 진도 기록</h3>
+            <span id="sheetBadge" class="text-[10px] font-black bg-blue-50 text-[#005CC5] px-2 py-1 rounded-md mb-2 inline-block">교시 정보</span>
+            <h3 id="sheetTitle" class="text-2xl font-black text-slate-900">진도 기록</h3>
           </div>
           <button class="btnCloseSheet text-slate-300 text-2xl"><i class="fa-solid fa-circle-xmark"></i></button>
-        </header>
+        </div>
 
         <div class="space-y-6">
           <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-            <span class="text-xs font-bold text-slate-400 block mb-1">마지막 진도</span>
-            <p id="prevProgressText" class="text-slate-600 font-medium text-sm">-</p>
+            <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">마지막 진도</p>
+            <p id="prevProgressText" class="text-slate-600 font-bold text-sm">-</p>
           </div>
-          <div>
-            <label class="text-sm font-bold text-slate-500 block mb-2 px-1">오늘의 진도</label>
-            <input type="text" id="progContent" placeholder="어디까지 나갔나요?" class="w-full p-4 rounded-2xl bg-slate-100 border-none outline-none focus:ring-2 focus:ring-[#005CC5] transition-all">
-          </div>
-          <div>
-            <label class="text-sm font-bold text-slate-500 block mb-2 px-1">수업 메모 (옵션)</label>
-            <textarea id="progNote" rows="2" placeholder="기억할 특이사항이 있나요?" class="w-full p-4 rounded-2xl bg-slate-100 border-none outline-none focus:ring-2 focus:ring-[#005CC5] transition-all"></textarea>
-          </div>
-          <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg shadow-xl shadow-blue-100 active:scale-95 transition-transform">기록 저장하기</button>
+          <input type="text" id="progContent" placeholder="오늘 어디까지 나갔나요?" class="w-full p-4 rounded-2xl bg-slate-100 border-none font-bold">
+          <textarea id="progNote" placeholder="메모할 특이사항이 있나요?" rows="2" class="w-full p-4 rounded-2xl bg-slate-100 border-none font-medium"></textarea>
+          <button id="btnSaveProgress" class="w-full bg-[#005CC5] text-white p-5 rounded-2xl font-bold text-lg shadow-xl shadow-blue-100 active:scale-95">기록 저장</button>
         </div>
       </div>
     </div>
 
-    <nav class="fixed bottom-6 inset-x-6 h-20 glass-morphism rounded-[30px] flex items-center justify-around px-4 shadow-2xl z-40">
-      <button class="nav-btn active-tab flex flex-col items-center gap-1" data-view="mainView">
+    <nav class="fixed bottom-6 inset-x-6 h-20 glass-morphism rounded-[30px] flex items-center justify-around px-4 shadow-xl z-40">
+      <button class="flex flex-col items-center gap-1 active-tab">
         <i class="fa-solid fa-house-chimney text-xl"></i>
-        <span class="text-[10px] font-bold uppercase tracking-wider">Home</span>
+        <span class="text-[10px] font-bold">홈</span>
       </button>
-      <button id="btnOpenSetup" class="nav-btn flex flex-col items-center gap-1" data-view="setupView">
-        <i class="fa-solid fa-calendar-week text-xl text-slate-400"></i>
-        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timetable</span>
+      <button id="btnOpenTimetableSetup" class="flex flex-col items-center gap-1 text-slate-300">
+        <i class="fa-solid fa-calendar-plus text-xl"></i>
+        <span class="text-[10px] font-bold">시간표</span>
       </button>
     </nav>
   </div>
