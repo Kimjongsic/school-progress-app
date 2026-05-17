@@ -16,14 +16,17 @@ let state = {
   selectedMoveItem: null
 };
 
-let deferredPrompt; // PWA 설치 프롬프트 보관용
+let deferredPrompt; 
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
 window.onload = () => {
   if (state.user) initApp();
-  else showView('loginView');
+  else {
+      showView('loginView');
+      checkInstallButtonVisibility(); // 로그인 화면 설치 버튼 체크
+  }
   initEvents();
 };
 
@@ -31,6 +34,19 @@ function showView(id) {
   document.querySelectorAll('section, main, #loadingView').forEach(v => v.classList.add('hidden'));
   const target = document.getElementById(id);
   if (target) target.classList.remove('hidden');
+}
+
+// 설치 버튼 노출 여부 공통 체크 함수
+function checkInstallButtonVisibility() {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
+
+    if (isIOS && !isStandalone) {
+        installBtns.forEach(btn => btn?.classList.remove('hidden'));
+    } else if (deferredPrompt) {
+        installBtns.forEach(btn => btn?.classList.remove('hidden'));
+    }
 }
 
 async function initApp() {
@@ -47,13 +63,7 @@ async function initApp() {
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI(); fetchTimetable();
-
-  // [PWA] iOS 수동 설치 유도 체크
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  if (isIOS && !isStandalone) {
-      document.getElementById('btnInstallPWA')?.classList.remove('hidden');
-  }
+  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -80,24 +90,32 @@ function initEvents() {
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
 
-  // [PWA 핵심] 안드로이드/PC용 설치 신호 감지
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault(); 
-    deferredPrompt = e;
-    document.getElementById('btnInstallPWA')?.classList.remove('hidden');
-    console.log('✅ 홈 화면 추가 신호 감지됨');
-  });
-
-  document.getElementById('btnInstallPWA')?.addEventListener('click', async () => {
+  // [PWA 공통 로직] 설치 버튼 클릭 (로그인 화면 & 설정 메뉴 공용)
+  const handleInstallClick = async () => {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') document.getElementById('btnInstallPWA').classList.add('hidden');
+      if (outcome === 'accepted') {
+          [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
+      }
       deferredPrompt = null;
     } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
       document.getElementById('iosInstallGuide')?.classList.remove('hidden');
     }
+  };
+
+  document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstallClick);
+  document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstallClick);
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferredPrompt = e;
+    checkInstallButtonVisibility();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
+    deferredPrompt = null;
   });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
@@ -110,6 +128,7 @@ function initEvents() {
   });
 }
 
+// 편집 모드 토글
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
@@ -131,7 +150,7 @@ window.renderTags = (type, containerId) => {
         return `<div class="tag-chip">${state.isTagEditMode ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
     if (state.isTagEditMode) {
-        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
+        html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
     container.innerHTML = html;
 }
@@ -341,6 +360,7 @@ async function handleLogin() {
   const p = document.getElementById('loginPin')?.value.trim();
   const { data } = await supabase.from('profiles').select('*').eq('name', n).eq('pin', p).maybeSingle();
   if (data) { state.user = data; localStorage.setItem('cf_user', JSON.stringify(data)); initApp(); }
+  else alert('정보가 올바르지 않습니다.');
 }
 
 async function handleNextButton() {
