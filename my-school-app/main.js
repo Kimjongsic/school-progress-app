@@ -45,7 +45,6 @@ async function initApp() {
         const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
         return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
     });
-    // 최대 교시 동적 동기화
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI();
@@ -75,9 +74,12 @@ function initEvents() {
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', () => { localStorage.clear(); location.reload(); });
   
+  // 문의하기 이벤트
+  document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
+  document.getElementById('btnCloseInquiry')?.addEventListener('click', () => document.getElementById('inquiryPopup').classList.add('hidden'));
+
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnConfirmMove')?.addEventListener('click', handleConfirmMove);
-
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   document.getElementById('dateTextGroup')?.addEventListener('click', () => document.getElementById('datePicker')?.showPicker());
@@ -246,19 +248,6 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
-// --- [개선] 수업 이동 시트 교시 제한 로직 ---
-window.openMoveSheet = (item) => {
-    state.selectedMoveItem = item;
-    const pSelect = document.getElementById('moveTargetPeriod');
-    
-    // [중요] 1교시부터 state.maxPeriods까지만 선택지로 생성
-    pSelect.innerHTML = Array.from({length: state.maxPeriods}, (_, i) => `<option value="${i+1}">${i+1}교시</option>`).join('');
-    
-    pSelect.value = item.period;
-    document.getElementById('moveTargetDate').value = state.activeDate.toISOString().split('T')[0];
-    toggleMoveSheet(true);
-};
-
 async function handleConfirmMove() {
     const targetDate = document.getElementById('moveTargetDate').value;
     const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
@@ -281,7 +270,7 @@ async function handleConfirmMove() {
         if (targetChanges.data?.some(c => c.change_type === 'added')) isOccupied = true;
 
         if (isOccupied) {
-            alert('해당 날짜 및 교시에는 이미 다른 수업이 배정되어 있어 옮길 수 없습니다.');
+            alert('해당 시간대에 이미 수업이 있습니다.');
             showView('mainView'); return;
         }
 
@@ -290,11 +279,20 @@ async function handleConfirmMove() {
             { user_name: state.user.name, date: targetDate, period: targetPeriod, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'added' }
         ]);
 
-        alert('수업 이동이 완료되었습니다.');
+        alert('수업 이동 완료');
         toggleMoveSheet(false); fetchTimetable();
-    } catch (err) { alert('처리 중 오류 발생'); }
+    } catch (err) { alert('오류 발생'); }
     finally { showView('mainView'); }
 }
+
+window.openMoveSheet = (item) => {
+    state.selectedMoveItem = item;
+    const pSelect = document.getElementById('moveTargetPeriod');
+    pSelect.innerHTML = Array.from({length: state.maxPeriods}, (_, i) => `<option value="${i+1}">${i+1}교시</option>`).join('');
+    pSelect.value = item.period;
+    document.getElementById('moveTargetDate').value = state.activeDate.toISOString().split('T')[0];
+    toggleMoveSheet(true);
+};
 
 function toggleMoveSheet(open) {
     const s = document.getElementById('moveSheet');
@@ -303,7 +301,6 @@ function toggleMoveSheet(open) {
     if (o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
 }
 
-// --- 공통 유틸리티 ---
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
   const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
