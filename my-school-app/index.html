@@ -33,9 +33,13 @@
     input:focus { outline: none; }
     .mini-input-chip { background: white; border: 2px solid #005CC5; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: 700; width: 85px; }
     
-    .dashboard-header { padding: 32px 32px 20px; background: white; }
+    /* [오류 수정 완료] CSS 표준 속성명 적용 */
+    .view-header { padding: 32px 32px 20px; background: white; flex-shrink: 0; }
     .teacher-label { font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
     .teacher-name-highlight { color: #005CC5; font-weight: 900; }
+    .page-title { font-size: 24px; font-weight: 900; color: #0F172A; letter-spacing: -0.025em; } /* tracking -> letter-spacing */
+    .header-action-btn { width: 40px; height: 40px; background-color: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748B; transition: all 0.2s; } /* items-center -> align-items */
+    .header-action-btn:active { transform: scale(0.9); background-color: #E2E8F0; }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -62,20 +66,22 @@
     </section>
 
     <section id="signUpContainer" class="view-transition hidden fixed inset-0 z-[100] bg-white flex flex-col">
-      <header id="signUpHeader" class="p-6 flex justify-between items-center bg-white">
-        <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 active:bg-slate-200 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
-        
-        <div id="headerCenter" class="flex-1 px-4">
-          <div id="progressWrapper" class="h-1.5 w-full bg-slate-100 rounded-full">
-            <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div>
-          </div>
-          <div id="editHeaderTitle" class="hidden text-left">
-            <p class="teacher-label !mb-0.5"><span id="editTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
-            <h2 class="text-2xl font-black text-slate-900 tracking-tight leading-none">전체 시간표</h2>
-          </div>
+      <header id="signUpHeader" class="view-header flex justify-between items-end">
+        <div id="headerLeftArea" class="flex-1">
+            <div id="signupHeaderContent" class="flex items-center gap-4">
+                <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="flex-1 h-1.5 bg-slate-100 rounded-full">
+                    <div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div>
+                </div>
+            </div>
+            <div id="editHeaderContent" class="hidden">
+                <p class="teacher-label"><span id="editTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
+                <h1 class="page-title">전체 시간표</h1>
+            </div>
         </div>
-
-        <button id="btnSignUpClose" class="w-10 h-10 flex items-center justify-center text-slate-300 text-2xl active:scale-90"><i class="fa-solid fa-xmark"></i></button>
+        <button id="btnSignUpClose" class="header-action-btn ml-4">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
       </header>
 
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
@@ -99,7 +105,7 @@
           <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
         </div>
         
-        <div id="step4" class="signUpStep hidden pt-2">
+        <div id="step4" class="signUpStep hidden">
           <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4">
             <div class="flex justify-between items-center px-1">
                 <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
@@ -109,7 +115,6 @@
             <div class="h-px bg-slate-100 mx-4"></div>
             <div id="quickGcSection" class="flex flex-wrap gap-2 justify-center"></div>
           </div>
-
           <table class="setup-table">
             <thead><tr class="header-cell"><th class="w-8 py-2"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
             <tbody id="setupTableBody"></tbody>
@@ -126,14 +131,18 @@
     </section>
 
     <main id="mainView" class="view-transition hidden flex-1 pb-10">
-      <div class="dashboard-header">
-        <p class="teacher-label"><span id="userNameDisplay" class="teacher-name-highlight">...</span> 선생님</p>
-        <div class="flex justify-between items-center">
-          <h1 class="text-2xl font-black text-slate-900 tracking-tight">수업 대시보드</h1>
-          <button id="btnSettings" class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 active:scale-90"><i class="fa-solid fa-gear"></i></button>
+      <header class="view-header flex justify-between items-end">
+        <div class="flex-1">
+          <p class="teacher-label"><span id="userNameDisplay" class="teacher-name-highlight">...</span> 선생님</p>
+          <h1 class="page-title">수업 대시보드</h1>
         </div>
-        
-        <div class="flex items-center gap-2 mt-6 bg-slate-50 p-1.5 rounded-2xl">
+        <button id="btnSettings" class="header-action-btn">
+            <i class="fa-solid fa-gear text-xl"></i>
+        </button>
+      </header>
+      
+      <div class="px-8 mb-6">
+        <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl">
             <button id="btnPrevDate" class="w-12 h-12 flex items-center justify-center text-slate-400 active:text-slate-900"><i class="fa-solid fa-chevron-left text-xl"></i></button>
             <div id="dateTextGroup" class="relative flex-1 text-center cursor-pointer active:bg-slate-100 rounded-xl transition-all">
               <h2 id="currentDateDisplay" class="text-sm font-black text-slate-700 py-3 tracking-tight">...</h2>
@@ -142,6 +151,7 @@
             <button id="btnNextDate" class="w-12 h-12 flex items-center justify-center text-slate-400 active:text-slate-900"><i class="fa-solid fa-chevron-right text-xl"></i></button>
         </div>
       </div>
+
       <div id="timetableList" class="px-8 space-y-4"></div>
     </main>
 
@@ -166,18 +176,14 @@
     <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300">
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
-        
         <header class="mb-6">
             <div id="sheetTagContainer" class="flex items-center gap-2 mb-3"></div>
             <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest ml-1">진도 기록</h3>
         </header>
-
         <div class="space-y-6">
           <div>
             <label class="text-[10px] font-black text-amber-500 mb-2 block uppercase ml-1 tracking-wider">LAST</label>
-            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]">
-              <p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p>
-            </div>
+            <div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]"><p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p></div>
           </div>
           <div>
             <label class="text-[10px] font-black text-[#005CC5] mb-2 block uppercase ml-1 tracking-wider">TODAY</label>
@@ -187,12 +193,11 @@
             <label class="text-[10px] font-black text-slate-400 mb-2 block uppercase ml-1 tracking-wider">MEMO</label>
             <textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none focus:ring-2 focus:ring-[#005CC5]/20"></textarea>
           </div>
-          <div class="flex justify-center pt-2">
-            <button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button>
-          </div>
+          <div class="flex justify-center pt-2"><button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button></div>
         </div>
       </div>
     </div>
+
   </div>
 
   <script type="module" src="/main.js"></script>

@@ -285,7 +285,6 @@ async function saveProgress() {
   finally { showView('mainView'); }
 }
 
-// --- 공통 로직 및 유틸리티 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
@@ -335,11 +334,14 @@ async function openEditTimetable() {
     showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
-    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
+    state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort((a, b) => {
+        const aP = a.split('-').map(Number); const bP = b.split('-').map(Number);
+        return aP[0] !== bP[0] ? aP[0]-bP[0] : (aP[1]||0)-(bP[1]||0);
+    });
     state.maxPeriods = Math.max(7, ... (current?.map(i => i.period) || [7]));
     showView('signUpContainer'); updateSignUpUI();
     
-    // 수정창 전용 헤더 업데이트
+    // 수정창 헤더 정보 업데이트
     const editTeacher = document.getElementById('editTeacherName');
     if(editTeacher) editTeacher.innerText = state.user.name;
 
@@ -356,17 +358,18 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   const backB = document.getElementById('btnSignUpBack');
   const nextB = document.getElementById('btnNextStep');
-  const progW = document.getElementById('progressWrapper');
-  const editH = document.getElementById('editHeaderTitle');
+  
+  const signupH = document.getElementById('signupHeaderContent');
+  const editH = document.getElementById('editHeaderContent');
 
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
-      if(progW) progW.classList.add('hidden');
+      if(signupH) signupH.classList.add('hidden');
       if(editH) editH.classList.remove('hidden');
       nextB.innerText = "수정 완료";
   } else {
       if(backB) backB.style.display = 'flex';
-      if(progW) progW.classList.remove('hidden');
+      if(signupH) signupH.classList.remove('hidden');
       if(editH) editH.classList.add('hidden');
       document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
       nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
