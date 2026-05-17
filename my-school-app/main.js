@@ -5,257 +5,438 @@ const supabaseUrl = 'https://gckplcpwrvabhqqohuib.supabase.co'
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja3BsY3B3cnZhYmhxcW9odWliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MDI3NTYsImV4cCI6MjA5NDQ3ODc1Nn0.rg9p24pmgeAIe6EcNZjIFEePXtpesnOnOZRlQKyUcuU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// 전역 상태 관리 변수
-let currentUser = null;
-let selectedTimetableItem = null;
+// --- 전역 상태 및 상수 ---
+let currentItem = {};
+let cachedTimetable = []; 
+let currentUser = localStorage.getItem('classFlow_userName'); 
+let modalConfirmCallback = null;
+const days = ['일','월','화','수','목','금','토']; [cite: 300]
 
-// DOM 엘리먼트 캐싱 (화면 및 모달)
-const views = {
-  login: document.getElementById('login-view'),
-  signup: document.getElementById('signup-view'),
-  dashboard: document.getElementById('dashboard-view'),
-  modal: document.getElementById('progress-modal')
+let isSignUpMode = false;
+let tempSignUpName = "";
+let tempSignUpPwd = "";
+let preSetupSubs = [];
+let preSetupGcs = [];
+let maxSetupPeriod = 7; [cite: 197]
+let activeCellParams = null;
+
+// 색상 팔레트 설정 [cite: 128]
+const subPalette = [
+  {bg: '#F4F0F7', text: '#492F64'}, {bg: '#F9EEF3', text: '#69314C'}, 
+  {bg: '#FBF3DB', text: '#89632A'}, {bg: '#F4EEEE', text: '#603B2C'}, 
+  {bg: '#E6FFFA', text: '#234E52'}, {bg: '#FFF5F5', text: '#742A2A'}, 
+  {bg: '#FAF5FF', text: '#44337A'}, {bg: '#F1F1EF', text: '#323232'}  
+];
+const gcPalette = {
+  '1': {bg: '#FBECDD', text: '#854C1D'}, 
+  '2': {bg: '#EDF3EC', text: '#2B593F'}, 
+  '3': {bg: '#E7F3F8', text: '#28456C'}, 
+  'default': {bg: '#F1F1EF', text: '#323232'}
+}; [cite: 128]
+let subjectColors = {};
+
+// --- 초기화 및 뷰 제어 ---
+window.onload = function() {
+  initSetupTable(); [cite: 138, 197]
+  if (currentUser) {
+    startApp(); [cite: 138, 173]
+  } else {
+    showView('loginView'); [cite: 139]
+  }
+  initEventListeners();
 };
 
-// 2. 앱 시작 시 초기화 로직
-window.addEventListener('DOMContentLoaded', () => {
-  // 브라우저에 로그인 기록이 남아있는지 확인
-  const savedUser = localStorage.getItem('user');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    initDashboard();
-  } else {
-    switchView('login');
-  }
-  initEvents();
-});
-
-// 화면 전환 함수
-function switchView(viewName) {
-  Object.keys(views).forEach(key => views[key].classList.add('hidden'));
-  if (views[viewName]) views[viewName].classList.remove('hidden');
+function showView(viewId) {
+  ['loginView', 'signUpView', 'preSetupSubView', 'preSetupGcView', 'loadingView', 'dashView', 'inputView', 'manageView', 'setupView'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.classList.add('hidden');
+  }); [cite: 176]
+  const target = document.getElementById(viewId);
+  if(target) target.classList.remove('hidden'); [cite: 177]
 }
 
-// 이벤트 리스너 한 번에 등록
-function initEvents() {
-  // 로그인 및 로그아웃
-  document.getElementById('btn-login').addEventListener('click', handleLogin);
-  document.getElementById('btn-logout').addEventListener('click', handleLogout);
+// --- 유틸리티 함수 (색상, 날짜) ---
+function getSubColor(sub) {
+  if(!subjectColors[sub]) {
+    subjectColors[sub] = subPalette[Object.keys(subjectColors).length % subPalette.length];
+  } [cite: 129]
+  return subjectColors[sub];
+}
+
+function getGcColor(gc) {
+  let grade = 'default';
+  const match = String(gc).match(/\d+/); [cite: 131]
+  if (match && gcPalette[match[0]]) grade = match[0]; [cite: 132]
+  return gcPalette[grade];
+}
+
+function getLocalYYYYMMDD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0'); [cite: 136]
+  return `${y}-${m}-${d}`;
+}
+
+// --- 이벤트 리스너 등록 ---
+function initEventListeners() {
+  // 로그인 & 가입 이동
+  document.getElementById('loginBtn')?.addEventListener('click', doLogin);
+  document.getElementById('btnGoSignUp')?.addEventListener('click', showSignUp);
+  document.getElementById('btnCancelSignUp')?.addEventListener('click', cancelSignUp);
   
-  // 회원가입 화면 전환 및 제출
-  document.getElementById('btn-go-signup').addEventListener('click', () => switchView('signup'));
-  document.getElementById('btn-go-login').addEventListener('click', () => switchView('login'));
-  document.getElementById('btn-signup-submit').addEventListener('click', handleSignUp);
+  // 가입 단계 이동
+  document.getElementById('step1NextBtn')?.addEventListener('click', goToPreSetupSub);
+  document.getElementById('btnAddSubInput')?.addEventListener('click', addPreSubInput);
+  document.getElementById('btnGoToStep3')?.addEventListener('click', goToPreSetupGc);
+  document.getElementById('btnAddGcInput')?.addEventListener('click', addPreGcInput);
+  document.getElementById('btnGoToTimetable')?.addEventListener('click', goToTimetableSetup);
   
-  // 진도 입력 모달 닫기 및 저장
-  document.getElementById('btn-close-modal').addEventListener('click', () => views.modal.classList.add('hidden'));
-  document.getElementById('btn-save-progress').addEventListener('click', handleSaveProgress);
+  // 대시보드 & 시간표 설정
+  document.getElementById('btnOpenSettings')?.addEventListener('click', openSetupFromDash);
+  document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
+  document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
+  document.getElementById('hiddenDate')?.addEventListener('change', syncDateFromInput);
+  
+  // 저장 & 삭제
+  document.getElementById('saveBtn')?.addEventListener('click', submitProgress);
+  document.getElementById('saveSetupBtn')?.addEventListener('click', saveFullSetup);
+  document.getElementById('clearSetupBtn')?.addEventListener('click', clearAllSetup);
+  document.getElementById('addPeriodBtn')?.addEventListener('click', addOnePeriod);
+  document.getElementById('removePeriodBtn')?.addEventListener('click', removeOnePeriod);
+  document.getElementById('setupLogoutBtn')?.addEventListener('click', logout);
+  
+  // 모달 제어
+  document.getElementById('btnCloseInput')?.addEventListener('click', () => showView('dashView'));
+  document.getElementById('btnToggleHistory')?.addEventListener('click', toggleHistory);
+  document.querySelectorAll('.install-guide-trigger').forEach(el => {
+    el.onclick = () => document.getElementById('installGuideModal').classList.remove('hidden');
+  }); [cite: 139]
+  document.getElementById('btnCloseInstallGuide')?.addEventListener('click', () => document.getElementById('installGuideModal').classList.add('hidden'));
+  document.getElementById('btnCloseGuideFinal')?.addEventListener('click', () => document.getElementById('installGuideModal').classList.add('hidden'));
 }
 
-// 3. 회원가입 처리 (비밀번호 문자열 보존)
-async function handleSignUp() {
-  const name = document.getElementById('signup-name').value.trim();
-  const pin = document.getElementById('signup-pin').value.trim(); // 문자열 형태로 추출 (앞자리 0 잘림 방지)
+// --- 핵심 로직: 로그인 & 회원가입 ---
+async function doLogin() {
+  const name = document.getElementById('loginNameInput').value.trim();
+  const pwd = document.getElementById('loginPasswordInput').value.trim(); [cite: 145]
+  
+  if (!name || !pwd) return showAlert("성함과 비밀번호를 입력해주세요.");
 
-  if (!name) {
-    alert('교사 이름을 입력해 주세요.');
-    return;
-  }
-  if (pin.length !== 4 || isNaN(pin)) {
-    alert('비밀번호는 숫자 4자리로 입력해 주세요.');
-    return;
-  }
-
-  // 동명이인 가입으로 데이터 꼬이는 것 방지
-  const { data: userCheck, error: checkError } = await supabase
-    .from('profiles')
-    .select('name')
-    .eq('name', name)
-    .maybeSingle();
-
-  if (checkError) {
-    alert('서버 통신 중 오류가 발생했습니다.');
-    console.error(checkError);
-    return;
-  }
-
-  if (userCheck) {
-    alert('이미 등록된 교사 이름입니다. 동일한 이름이 있다면 다르게 입력해 주세요.');
-    return;
-  }
-
-  // Supabase 'profiles' 테이블에 유저 추가 (id는 자동 생성)
-  const { error: insertError } = await supabase
-    .from('profiles')
-    .insert([{ name: name, pin: pin }]);
-
-  if (insertError) {
-    alert('회원가입에 실패했습니다. 다시 시도해 주세요.');
-    console.error(insertError);
-  } else {
-    alert('회원가입이 성공적으로 완료되었습니다! 가입하신 정보로 로그인해 주세요.');
-    document.getElementById('signup-name').value = '';
-    document.getElementById('signup-pin').value = '';
-    switchView('login');
-  }
-}
-
-// 4. 로그인 처리
-async function handleLogin() {
-  const name = document.getElementById('login-name').value.trim();
-  const pin = document.getElementById('login-pin').value.trim();
-
-  if (!name || pin.length !== 4) {
-    alert('이름과 숫자 4자리 비밀번호를 올바르게 입력해 주세요.');
-    return;
-  }
+  const btn = document.getElementById('loginBtn');
+  btn.innerText = "확인 중..."; btn.disabled = true;
 
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('name', name)
-    .eq('pin', pin) // 문자열 대 문자열로 정확히 비교
+    .eq('pin', pwd) [cite: 276]
     .maybeSingle();
 
-  if (error) {
-    alert('로그인 중 오류가 발생했습니다.');
-    console.error(error);
-    return;
-  }
-
   if (data) {
-    currentUser = data;
-    localStorage.setItem('user', JSON.stringify(data)); // 자동 로그인 유지
-    initDashboard();
+    currentUser = name;
+    localStorage.setItem('classFlow_userName', currentUser);
+    startApp();
   } else {
-    alert('교사 정보 또는 비밀번호가 일치하지 않습니다.');
+    showAlert("정보가 일치하지 않거나 가입되지 않은 이름입니다.");
+    btn.innerText = "로그인"; btn.disabled = false;
   }
 }
 
-// 로그아웃 처리
-function handleLogout() {
-  localStorage.removeItem('user');
-  currentUser = null;
-  switchView('login');
+async function handleSignUpFinal(timetableData) {
+  showView('loadingView');
+  document.getElementById('loadingText').innerText = "계정을 생성하고 있습니다..."; [cite: 221]
+
+  // 1. 프로필 생성
+  const { error: profileErr } = await supabase
+    .from('profiles')
+    .insert([{ name: tempSignUpName, pin: tempSignUpPwd }]); [cite: 285]
+
+  if (profileErr) return showAlert("가입 중 오류가 발생했습니다.");
+
+  // 2. 기본 시간표 저장
+  const rows = timetableData.map(r => ({
+    user_name: tempSignUpName, day: r[0], period: r[1], subject: r[2], grade_class: r[3]
+  }));
+  await supabase.from('basic_timetable').insert(rows); [cite: 340]
+
+  currentUser = tempSignUpName;
+  localStorage.setItem('classFlow_userName', currentUser);
+  isSignUpMode = false;
+  showAlert("가입 및 설정이 완료되었습니다!", startApp);
 }
 
-// 5. 메인 대시보드 구동
-function initDashboard() {
-  switchView('dashboard');
-  document.getElementById('user-name').innerText = currentUser.name;
+// --- 핵심 로직: 대시보드 (데이터 병합) [cite: 298-333] ---
+async function startApp() {
+  showView('loadingView');
+  const dateStr = document.getElementById('hiddenDate').value || getLocalYYYYMMDD(new Date());
+  const dayName = days[new Date(dateStr).getDay()];
 
-  // 오늘 날짜 및 요일 계산
-  const now = new Date();
-  const days = ['일', '월', '화', '수', '목', '금', '토'];
-  const formattedDate = `${now.getMonth() + 1}월 ${now.getDate()}일 (${days[now.getDay()]})`;
-  document.getElementById('today-date').innerText = formattedDate;
+  // A. 데이터 병렬 로드
+  const [basicRes, changeRes, recordRes] = await Promise.all([
+    supabase.from('basic_timetable').select('*').eq('user_name', currentUser).eq('day', dayName), [cite: 301]
+    supabase.from('changed_timetable').select('*').eq('user_name', currentUser).eq('date', dateStr), [cite: 305]
+    supabase.from('lesson_records').select('*').eq('user_name', currentUser) [cite: 314]
+  ]);
 
-  // 오늘 요일에 맞는 시간표 로드
-  loadTodayTimetable(days[now.getDay()]);
-}
-
-// 6. 오늘 시간표 불러오기 및 카드 UI 구성
-async function loadTodayTimetable(dayName) {
-  const listContainer = document.getElementById('timetable-list');
-  listContainer.innerHTML = '<p class="text-slate-400 text-center py-8">시간표를 불러오는 중입니다...</p>';
-
-  // timetable 테이블과 classes 테이블을 Join하여 데이터 가져오기
-  const { data: timetable, error } = await supabase
-    .from('timetable')
-    .select('id, period, day, classes(id, subject, grade_class)')
-    .eq('user_id', currentUser.id)
-    .eq('day', dayName)
-    .order('period', { ascending: true });
-
-  if (error || !timetable || timetable.length === 0) {
-    listContainer.innerHTML = `<p class="text-slate-400 text-center py-8">오늘(${dayName}요일)은 배정된 수업이 없습니다.</p>`;
+  if (!basicRes.data?.length && !changeRes.data?.length) {
+    showView('setupView'); // 설정이 없으면 시간표 설정으로 이동 [cite: 175]
     return;
   }
 
-  listContainer.innerHTML = ''; // 로딩 문구 제거
+  // B. 대시보드 데이터 조립 (Priority: Changed > Basic)
+  let dashboard = {};
+  
+  basicRes.data.forEach(item => {
+    dashboard[item.period] = { ...item, gradeClass: item.grade_class, prevProgress: '-', todayProgress: '-', todayNote: '-' };
+  }); [cite: 303]
 
-  // 각 교시별 수업 카드를 그리고, 직전 진도를 찾아 매칭
-  for (const item of timetable) {
-    const targetClass = item.classes;
+  changeRes.data.forEach(item => {
+    if (item.subject === '[삭제]') delete dashboard[item.period]; [cite: 312]
+    else dashboard[item.period] = { ...item, gradeClass: item.grade_class, prevProgress: '-', todayProgress: '-', todayNote: '-' };
+  }); [cite: 313]
+
+  // C. 진도 기록 매칭 (최신순 탐색) [cite: 318]
+  const records = recordRes.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  Object.values(dashboard).forEach(item => {
+    const classRecords = records.filter(r => r.grade_class === item.gradeClass && r.subject === item.subject);
     
-    // 해당 학급(class_id)의 가장 최근 진도 기록 1개 조회
-    const { data: recentProgress } = await supabase
-      .from('progress')
-      .select('content')
-      .eq('class_id', targetClass.id)
-      .order('date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const todayRec = classRecords.find(r => r.date === dateStr && r.period === item.period);
+    if (todayRec) {
+      item.todayProgress = todayRec.content;
+      item.todayNote = todayRec.note;
+    } [cite: 325]
 
-    const lastContent = recentProgress ? recentProgress.content : '기록된 이전 진도가 없습니다.';
+    const prevRec = classRecords.find(r => r.date < dateStr);
+    if (prevRec) item.prevProgress = prevRec.content; [cite: 327]
+  });
 
-    // 동적 카드 생성
+  renderDash(Object.values(dashboard).sort((a, b) => a.period - b.period));
+  updateDateDisplay(new Date(dateStr));
+  showView('dashView');
+}
+
+// --- UI 렌더링 함수 ---
+function renderDash(list) {
+  const container = document.getElementById('dashList');
+  container.innerHTML = ""; [cite: 234]
+  
+  if(!list.length) {
+    container.innerHTML = '<div style="text-align:center; padding:50px; color:var(--text-muted); border:2px dashed var(--border); border-radius:15px;">수업이 없습니다.</div>';
+    return; [cite: 234]
+  }
+
+  list.forEach(item => {
+    const subCol = getSubColor(item.subject);
+    const gcCol = getGcColor(item.gradeClass);
     const card = document.createElement('div');
-    card.className = 'bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center hover:border-blue-300 transition-all';
+    card.className = "card";
     card.innerHTML = `
-      <div>
-        <div class="text-xs font-semibold text-slate-400 mb-1">${item.period}교시 | ${targetClass.grade_class}</div>
-        <div class="text-lg font-bold text-slate-800 mb-1">${targetClass.subject}</div>
-        <div class="text-sm text-slate-500"><span class="text-xs font-medium text-slate-400">이전 진도:</span> ${lastContent}</div>
+      <div class="card-header">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <div class="period-badge">${item.period}교시</div>
+          <div style="background-color:${subCol.bg}; color:${subCol.text}; padding:4px 10px; border-radius:14px; font-weight:700;">${item.subject}</div>
+          <div style="background-color:${gcCol.bg}; color:${gcCol.text}; padding:4px 10px; border-radius:14px; font-weight:700;">${item.gradeClass}</div>
+        </div>
+        <div class="manage-link" onclick="event.stopPropagation(); openManage('${JSON.stringify(item).replace(/"/g, '&quot;')}')">수업 변경</div>
       </div>
-      <button class="bg-slate-50 hover:bg-[#005CC5] hover:text-white text-slate-600 font-medium px-4 py-2 rounded-xl text-sm transition-colors border border-slate-100 btn-enter-progress">
-        진도 입력
-      </button>
-    `;
+      <div class="prog-box">
+        <div class="prog-row prev"><span class="label">이전 진도</span><span>${item.prevProgress==='-'?'기록 없음':item.prevProgress}</span></div>
+        <div class="prog-row today"><span class="label">오늘 진도</span><span>${item.todayProgress==='-'?'기록하기 +':item.todayProgress}</span></div>
+      </div>
+    `; [cite: 236-237]
+    card.onclick = () => openInput(item);
+    container.appendChild(card);
+  });
+}
 
-    // 진도 입력 버튼 클릭 시 모달 팝업 오픈
-    card.querySelector('.btn-enter-progress').addEventListener('click', () => {
-      openProgressModal(item, lastContent);
-    });
+// --- 진도 기록 및 이력 조회 ---
+async function openInput(item) {
+  currentItem = item;
+  const dateStr = document.getElementById('hiddenDate').value;
+  const [y, m, d] = dateStr.split('-');
+  
+  document.getElementById('inputTitle').innerHTML = `
+    <div style="font-size:14px; color:#718096; margin-bottom:10px; font-weight:600;"><i class="fa-solid fa-pen"></i> ${parseInt(m)}월 ${parseInt(d)}일 진도 기록</div>
+    <div style="font-size:18px; font-weight:700;">${item.period}교시 ${item.subject} (${item.gradeClass})</div>
+  `; [cite: 252]
 
-    listContainer.appendChild(card);
+  document.getElementById('progContent').value = item.todayProgress === '-' ? '' : item.todayProgress;
+  document.getElementById('progNotes').value = item.todayNote === '-' ? '' : item.todayNote; [cite: 253]
+  
+  const historyBox = document.getElementById('historyContainer');
+  historyBox.innerHTML = "기록을 불러오는 중...";
+  showView('inputView');
+
+  // 이력 조회 (getLessonHistory 변환) [cite: 363]
+  const { data } = await supabase
+    .from('lesson_records')
+    .select('*')
+    .eq('user_name', currentUser)
+    .eq('grade_class', item.gradeClass)
+    .eq('subject', item.subject)
+    .lt('date', dateStr)
+    .order('date', { ascending: false });
+
+  if (data?.length) {
+    historyBox.innerHTML = data.map(h => `
+      <div class="history-card">
+        <div class="history-date">${h.date}</div>
+        <div class="history-content"><strong>진도:</strong> ${h.content}</div>
+        ${h.note !== '-' ? `<div class="history-note"><strong>메모:</strong> ${h.note}</div>` : ''}
+      </div>
+    `).join(''); [cite: 246]
+  } else {
+    historyBox.innerHTML = "이전 기록이 없습니다.";
   }
 }
 
-// 7. 진도 입력 모달창 세팅
-function openProgressModal(timetableItem, lastContent) {
-  selectedTimetableItem = timetableItem;
-  
-  document.getElementById('modal-badge').innerText = `${timetableItem.period}교시 | ${timetableItem.classes.grade_class}`;
-  document.getElementById('modal-title').innerText = `${timetableItem.classes.subject} 진도 기록`;
-  document.getElementById('modal-prev-content').innerText = lastContent;
-  
-  // 입력 필드 비우기
-  document.getElementById('input-content').value = '';
-  document.getElementById('input-memo').value = '';
-  
-  views.modal.classList.remove('hidden');
-}
+async function submitProgress() {
+  const content = document.getElementById('progContent').value.trim() || "-";
+  const note = document.getElementById('progNotes').value.trim() || "-";
+  const dateStr = document.getElementById('hiddenDate').value;
 
-// 8. 오늘 나간 진도 데이터베이스에 저장
-async function handleSaveProgress() {
-  const content = document.getElementById('input-content').value.trim();
-  const memo = document.getElementById('input-memo').value.trim();
-  
-  if (!content) {
-    alert('오늘 나간 진도 내용을 입력해 주세요.');
-    return;
-  }
-
-  const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식 문자열 생성
+  const btn = document.getElementById('saveBtn');
+  btn.innerText = "저장 중..."; btn.disabled = true; [cite: 266]
 
   const { error } = await supabase
-    .from('progress')
-    .insert([
-      {
-        class_id: selectedTimetableItem.classes.id,
-        date: todayStr,
-        content: content,
-        memo: memo
-      }
-    ]);
+    .from('lesson_records')
+    .upsert({
+      user_name: currentUser, date: dateStr, period: currentItem.period,
+      grade_class: currentItem.gradeClass, subject: currentItem.subject,
+      content, note, updated_at: new Date()
+    }, { onConflict: 'user_name, date, period, grade_class, subject' }); [cite: 341, 351]
 
-  if (error) {
-    alert('진도 저장 중 에러가 발생했습니다.');
-    console.error(error);
+  if (!error) {
+    alert("저장되었습니다.");
+    startApp();
   } else {
-    alert('진도가 안전하게 기록되었습니다.');
-    views.modal.classList.add('hidden'); // 모달 닫기
-    initDashboard(); // 대시보드를 새로고침하여 방금 입력한 진도를 '이전 진도' 칸에 즉시 반영
+    alert("저장 실패: " + error.message);
   }
+  btn.innerText = "기록 저장"; btn.disabled = false;
+}
+
+// --- 시간표 설정 UI 로직 (기존 Index.txt의 복잡한 로직들) ---
+function initSetupTable() {
+  const body = document.getElementById('setupBody');
+  body.innerHTML = Array.from({length: maxSetupPeriod}, (_, i) => createRowHTML(i+1)).join('');
+  updateQuickButtons(); [cite: 199]
+}
+
+function createRowHTML(p) {
+  return `<tr><td style="text-align:center; font-weight:700; color:var(--text-muted);">${p}</td>` + 
+    ['월','화','수','목','금'].map(d => `
+      <td><div class="cell-input-group">
+        <input type="text" class="setup-in sub-in" data-day="${d}" data-p="${p}" placeholder="과목" onfocus="setActiveCell('${d}', ${p})" oninput="updateQuickButtons()">
+        <input type="text" class="setup-in gc-in" data-day="${d}" data-p="${p}" placeholder="학년반" onfocus="setActiveCell('${d}', ${p})" oninput="updateQuickButtons()">
+      </div></td>`).join('') + `</tr>`; [cite: 196]
+}
+
+function setActiveCell(day, p) { activeCellParams = { day, p }; }
+
+function updateQuickButtons() {
+  const subs = new Set(preSetupSubs);
+  const gcs = new Set(preSetupGcs);
+  document.querySelectorAll('.sub-in').forEach(el => el.value && subs.add(el.value));
+  document.querySelectorAll('.gc-in').forEach(el => el.value && gcs.add(el.value)); [cite: 184-185]
+  
+  const section = document.getElementById('quickInputSection');
+  if (!subs.size && !gcs.size) return section.style.display = 'none';
+  section.style.display = 'block';
+  
+  document.getElementById('quickSubBtns').innerHTML = [...subs].map(v => `<button class="quick-btn" onclick="applyQuickValue('${v}', 'sub')">${v}</button>`).join('');
+  document.getElementById('quickGcBtns').innerHTML = [...gcs].map(v => `<button class="quick-btn" onclick="applyQuickValue('${v}', 'gc')">${v}</button>`).join('');
+}
+
+function applyQuickValue(val, type) {
+  if(!activeCellParams) return alert("칸을 먼저 선택하세요.");
+  const input = document.querySelector(`.${type==='sub'?'sub-in':'gc-in'}[data-day="${activeCellParams.day}"][data-p="${activeCellParams.p}"]`);
+  if(input) { input.value = val; updateQuickButtons(); }
+}
+
+async function saveFullSetup() {
+  let data = [];
+  ['월','화','수','목','금'].forEach(d => {
+    for(let p=1; p<=maxSetupPeriod; p++) {
+      const sub = document.querySelector(`.sub-in[data-day="${d}"][data-p="${p}"]`).value.trim();
+      const gc = document.querySelector(`.gc-in[data-day="${d}"][data-p="${p}"]`).value.trim();
+      if(sub) data.push([d, p, sub, gc]);
+    }
+  }); [cite: 219]
+
+  if (isSignUpMode) handleSignUpFinal(data);
+  else {
+    await supabase.from('basic_timetable').delete().eq('user_name', currentUser);
+    const rows = data.map(r => ({ user_name: currentUser, day: r[0], period: r[1], subject: r[2], grade_class: r[3] }));
+    await supabase.from('basic_timetable').insert(rows);
+    alert("시간표가 저장되었습니다.");
+    startApp();
+  }
+}
+
+// --- 공통 알림창 및 기타 기능 ---
+function showAlert(msg, callback) {
+  const modal = document.getElementById('customModal');
+  document.getElementById('customModalMsg').innerHTML = msg.replace(/\n/g, '<br>');
+  document.getElementById('customModalBtns').innerHTML = `<button class="modal-btn" style="background:var(--primary); color:white;" id="modalOkBtn">확인</button>`;
+  document.getElementById('modalOkBtn').onclick = () => { modal.classList.add('hidden'); if(callback) callback(); };
+  modal.classList.remove('hidden'); [cite: 140-141]
+}
+
+function moveDate(offset) {
+  const dateInput = document.getElementById('hiddenDate');
+  const d = new Date(dateInput.value || new Date());
+  d.setDate(d.getDate() + offset);
+  dateInput.value = getLocalYYYYMMDD(d);
+  startApp(); [cite: 229]
+}
+
+function syncDateFromInput() { startApp(); }
+
+function updateDateDisplay(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  document.getElementById('dateText').innerText = `${y}. ${m}. ${d} (${days[date.getDay()]})`; [cite: 227]
+}
+
+// --- 가입 단계별 화면 제어 ---
+function showSignUp() { isSignUpMode = true; resetPreSetupDOM(); showView('signUpView'); }
+function cancelSignUp() { isSignUpMode = false; showView('loginView'); }
+function resetPreSetupDOM() {
+  document.getElementById('subInputContainer').innerHTML = `<div style="display:flex; gap:10px; margin-bottom:10px;"><input type="text" class="large-input sub-item-input" placeholder="과목 (예: 수학)" style="flex:1;"></div>`;
+  document.getElementById('gcInputContainer').innerHTML = `<div class="gc-input-row" style="padding:15px; border-radius:12px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);"><input type="number" class="gc-grade-input" placeholder="학년" style="width:70px;"> 학년 <input type="text" class="gc-class-input" placeholder="반 (예: 1, 2, 3)"></div>`;
+}
+function addPreSubInput() { document.getElementById('subInputContainer').insertAdjacentHTML('beforeend', `<div style="display:flex; gap:10px; margin-bottom:10px;"><input type="text" class="large-input sub-item-input" placeholder="과목 추가" style="flex:1;"></div>`); }
+function addPreGcInput() { document.getElementById('gcInputContainer').insertAdjacentHTML('beforeend', `<div class="gc-input-row" style="padding:15px; border-radius:12px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);"><input type="number" class="gc-grade-input" placeholder="학년" style="width:70px;"> 학년 <input type="text" class="gc-class-input" placeholder="반"></div>`); }
+function goToPreSetupSub() {
+  tempSignUpName = document.getElementById('signUpNameInput').value.trim();
+  tempSignUpPwd = document.getElementById('signUpPasswordInput').value.trim();
+  if(!tempSignUpName || !tempSignUpPwd) return alert("정보를 모두 입력하세요.");
+  showView('preSetupSubView');
+}
+function goToPreSetupGc() {
+  preSetupSubs = [];
+  document.querySelectorAll('.sub-item-input').forEach(i => i.value && preSetupSubs.push(i.value.trim()));
+  showView('preSetupGcView');
+}
+function goToTimetableSetup() {
+  preSetupGcs = [];
+  document.querySelectorAll('.gc-input-row').forEach(row => {
+    const grade = row.querySelector('.gc-grade-input').value;
+    const classes = row.querySelector('.gc-class-input').value.split(',');
+    classes.forEach(c => c.trim() && preSetupGcs.push(`${grade}-${c.trim()}`));
+  });
+  initSetupTable();
+  showView('setupView');
+}
+function openSetupFromDash() { isSignUpMode = false; showView('setupView'); }
+function logout() { localStorage.removeItem('classFlow_userName'); location.reload(); }
+function addOnePeriod() { if(maxSetupPeriod < 15) { maxSetupPeriod++; initSetupTable(); } }
+function removeOnePeriod() { if(maxSetupPeriod > 1) { maxSetupPeriod--; initSetupTable(); } }
+function toggleHistory() {
+  const container = document.getElementById('historyContainer');
+  const icon = document.getElementById('historyToggleIcon');
+  container.classList.toggle('hidden');
+  icon.classList.toggle('fa-chevron-up'); icon.classList.toggle('fa-chevron-down'); [cite: 248]
 }

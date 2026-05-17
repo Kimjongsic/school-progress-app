@@ -2,113 +2,322 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>수업 진도 기록 앱</title>
-  <!-- Tailwind CSS CDN 로드 -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="수업 진도 관리">
+  <meta name="theme-color" content="#1A365D">
+  
+  <link rel="icon" href="https://i.imgur.com/spgeYqp.png">
+  <link rel="apple-touch-icon" href="https://i.imgur.com/spgeYqp.png">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <title>수업 진도 관리</title>
+
+  <style>
+    :root { 
+      --primary: #1A365D;
+      --primary-hover: #2c5282; 
+      --bg: #F1F5F9; 
+      --surface: #FFFFFF; 
+      --text-main: #2D3748; 
+      --text-muted: #718096; 
+      --border: #E2E8F0; 
+      --highlight: #EBF8FF; 
+      --danger: #E53E3E; 
+      --danger-hover: #C53030;
+    }
+    
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); margin: 0; padding: 20px 15px; color: var(--text-main); }
+    
+    .container { max-width: 480px; margin: 0 auto; background: var(--surface); padding: 0; border-radius: 24px; overflow: hidden; box-shadow: 0 12px 36px rgba(26,54,93,0.08); border: 1px solid rgba(0,0,0,0.03); position: relative; }
+    
+    .view:not(.hidden) { animation: fadeSlideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    @keyframes fadeSlideUp {
+      0% { opacity: 0; transform: translateY(15px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    #signUpView, #preSetupSubView, #preSetupGcView { background: var(--primary); }
+    #signUpView h2, #preSetupSubView h2, #preSetupGcView h2 { color: white !important; }
+    #signUpView p, #preSetupSubView p, #preSetupGcView p { color: #CBD5E0 !important; }
+    #signUpView .large-input, #preSetupSubView .large-input, #preSetupGcView .large-input { background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: white !important; }
+    #signUpView .large-input::placeholder, #preSetupSubView .large-input::placeholder, #preSetupGcView .large-input::placeholder { color: #A0AEC0 !important; }
+    #signUpView button.next-btn, #preSetupSubView button.next-btn, #preSetupGcView button.next-btn { background: white !important; color: var(--primary) !important; }
+    #signUpView button.next-btn:hover, #preSetupSubView button.next-btn:hover, #preSetupGcView button.next-btn:hover { background: #F8FAFC !important; }
+    #signUpView .btn-outline, #preSetupSubView .btn-outline, #preSetupGcView .btn-outline { background: transparent !important; color: white !important; border-color: rgba(255, 255, 255, 0.4) !important; }
+    #signUpView .btn-outline:hover, #preSetupSubView .btn-outline:hover, #preSetupGcView .btn-outline:hover { background: rgba(255, 255, 255, 0.1) !important; }
+
+    .btn-dark-danger { background: rgba(229, 62, 62, 0.2); color: #FC8181; border: 1px solid rgba(229, 62, 62, 0.5); border-radius: 12px; width: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+    .btn-dark-danger:hover { background: rgba(229, 62, 62, 0.4); color: white; }
+
+    .app-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 10px; background: white; }
+    .app-title { font-size: 20px; font-weight: 700; color: var(--primary); }
+    .settings-btn { color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 8px; border-radius: 8px; transition: 0.2s; }
+    .settings-btn:hover { background: var(--bg); color: var(--primary); }
+
+    .date-nav { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px 20px; background: white; border-bottom: 1px solid var(--border); }
+    .nav-arrow { width: 38px; height: 38px; background: #F8FAFC; border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); cursor: pointer; transition: 0.2s; }
+    .nav-arrow:hover { background: var(--highlight); }
+    
+    .date-display { position: relative; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; color: var(--text-main); cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: 0.2s; overflow: hidden; }
+    .date-display input[type="date"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+    
+    .content { padding: 20px; min-height: 300px; }
+    
+    .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: all 0.2s ease; cursor: pointer; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(26,54,93,0.1); border-color: #A0AEC0; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed var(--border); padding-bottom: 10px; }
+    .period-badge { background: var(--primary); color: white; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 14px; white-space: nowrap; flex-shrink: 0; }
+    
+    .manage-link { font-size: 11.5px; color: var(--primary); cursor: pointer; position: relative; z-index: 2; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border); background: #F8FAFC; font-weight: 500; transition: 0.2s; white-space: nowrap; }
+    .manage-link:hover { background: var(--highlight); border-color: #bee3f8; }
+
+    .prog-box { display: flex; flex-direction: column; gap: 8px; }
+    .prog-row { display: flex; font-size: 14px; padding: 10px; border-radius: 8px; }
+    .prog-row.prev { background: #F8FAFC; color: var(--text-muted); }
+    .prog-row.today { background: var(--highlight); color: var(--primary); border: 1px dashed #BEE3F8; font-weight: 500; }
+    .label { width: 70px; font-weight: 700; font-size: 12px; margin-top: 2px; }
+
+    .hidden { display: none !important; }
+    .view { padding: 25px 20px; }
+    .view-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+    .close-x { font-size: 22px; color: var(--text-muted); cursor: pointer; padding: 0 5px; transition: 0.2s; }
+    .close-x:hover { color: var(--danger); }
+
+    .action-row { display: flex; gap: 10px; margin-top: 15px; }
+    
+    .manage-sub-title { font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 12px; margin-top: 10px; }
+    .large-input { font-size: 17px !important; padding: 16px !important; margin-bottom: 10px; text-align: center; width: 100%; box-sizing: border-box; }
+    
+    .setup-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 15px; }
+    .setup-table th { background: transparent; padding: 8px 2px; border: none; font-size: 12px; color: var(--text-muted); }
+    .setup-table td { border: none; padding: 2px; vertical-align: top; overflow: hidden; }
+    .cell-input-group { display: flex; flex-direction: column; gap: 3px; }
+    
+    .setup-in { width: 100%; height: 32px; line-height: 32px; padding: 0; text-align: center; font-family: inherit; font-size: clamp(11px, 2.8vw, 13px); font-weight: 700; outline: none; box-sizing: border-box; transition: font-size 0.1s, box-shadow 0.2s, background-color 0.2s; border-radius: 20px; border: 1px solid transparent; background-color: transparent; }
+    .setup-in::placeholder { font-size: 10px; font-weight: 400; color: #CBD5E0; letter-spacing: normal; }
+    .setup-in:focus { box-shadow: 0 0 0 2px var(--primary); z-index: 10; position: relative; }
+    
+    input[type="text"], input[type="password"], input[type="number"], input[type="date"], textarea { width: 100%; padding: 12px; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; box-sizing: border-box; outline: none; }
+    input[type="text"]:focus, input[type="password"]:focus { border-color: var(--primary); }
+    
+    button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 16px; }
+    button:disabled { opacity: 0.7; cursor: not-allowed; }
+    button:hover { background: var(--primary-hover); }
+    
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: var(--danger-hover); }
+    .btn-outline { background: white; color: var(--text-muted); border: 1.5px solid var(--border); margin-top: 8px; }
+    .btn-outline:hover { background: #F8FAFC; color: var(--text-main); }
+    .btn-icon-only { flex-shrink: 0; width: 65px; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+
+    .grid-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; flex: 1; }
+
+    .quick-btn { padding: 8px 2px; border-radius: 20px; font-size: 12px; letter-spacing: -0.5px; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: 0.1s; width: 100%; box-sizing: border-box; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; background: transparent; }
+    .quick-btn:active { transform: scale(0.95); }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+    .modal-box { background: white; padding: 25px 20px 20px; border-radius: 16px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .modal-msg { font-size: 16px; color: var(--text-main); margin-bottom: 25px; line-height: 1.5; font-weight: 500; word-break: keep-all; }
+    .modal-btn-group { display: flex; gap: 10px; justify-content: center; }
+    .modal-btn { flex: 1; padding: 12px; font-size: 15px; border-radius: 10px; cursor: pointer; border: none; font-family: inherit; font-weight: 700; }
+    .modal-btn.cancel { background: #E2E8F0; color: var(--text-main); }
+
+    .history-card { background: white; padding: 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; text-align: left; }
+    .history-date { font-size: 11px; color: var(--primary); font-weight: 700; margin-bottom: 4px; }
+    .history-content { font-size: 13.5px; color: var(--text-main); margin-bottom: 4px; }
+    .history-note { font-size: 12.5px; color: var(--text-muted); background: #F8FAFC; padding: 6px; border-radius: 6px; }
+  </style>
 </head>
-<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+<body>
 
-  <!-- index.html의 <body> 내부를 아래와 같이 업데이트하세요 -->
+<div class="container">
+  
+  <div id="loginView" class="view hidden" style="padding-top: 50px; padding-bottom: 40px;">
+    <h2 style="text-align:center; color:var(--primary); font-size:24px; margin-bottom:15px;">수업 진도 관리</h2>
+    <p style="text-align:center; color:var(--text-muted); font-size:14px; margin-bottom:25px; line-height:1.5;">선생님의 성함과 비밀번호를 입력해주세요.</p>
+    
+    <div style="margin-bottom: 10px;">
+      <input type="text" id="loginNameInput" class="large-input" placeholder="이름 (예: 김수학)" autocomplete="off">
+    </div>
+    <div style="margin-bottom: 25px;">
+      <input type="password" id="loginPasswordInput" class="large-input" placeholder="비밀번호" autocomplete="off">
+    </div>
 
-  <!-- 1. 로그인 화면 -->
-  <div id="login-view" class="flex flex-col items-center justify-center min-h-screen px-4">
-    <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-slate-100">
-      <h2 class="text-2xl font-bold text-center text-[#005CC5] mb-6">진도 기록 앱 로그인</h2>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-600 mb-1">교사 이름</label>
-          <input type="text" id="login-name" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5]" placeholder="이름을 입력하세요">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-600 mb-1">비밀번호 (숫자 4자리)</label>
-          <input type="password" id="login-pin" maxlength="4" inputmode="numeric" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5] tracking-widest text-center text-xl" placeholder="••••">
-        </div>
-        <button id="btn-login" class="w-full bg-[#005CC5] text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm">로그인</button>
-        
-        <!-- 회원가입 이동 버튼 추가 -->
-        <p class="text-sm text-center text-slate-400 mt-4">
-          처음이신가요? <button id="btn-go-signup" class="text-[#005CC5] font-semibold hover:underline">회원가입 하기</button>
-        </p>
-      </div>
+    <button id="loginBtn">로그인</button>
+    <button class="btn-outline" id="btnGoSignUp" style="margin-top:10px;">처음 시작하기</button>
+    
+    <div style="text-align:center; margin-top:25px;">
+      <span class="install-guide-trigger" style="font-size:13px; color:var(--text-muted); text-decoration:underline; text-underline-offset:3px; cursor:pointer;"><i class="fa-solid fa-mobile-screen-button"></i> 홈 화면에 추가하는 방법</span>
     </div>
   </div>
 
-  <!-- 1-2. 회원가입 화면 (추가된 부분, 초기에는 숨김) -->
-  <div id="signup-view" class="hidden flex flex-col items-center justify-center min-h-screen px-4">
-    <div class="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-slate-100">
-      <h2 class="text-2xl font-bold text-center text-[#005CC5] mb-6">선생님 회원가입</h2>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-600 mb-1">교사 이름</label>
-          <input type="text" id="signup-name" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5]" placeholder="성함을 입력하세요 (공백없이)">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-600 mb-1">사용할 비밀번호 (숫자 4자리)</label>
-          <input type="password" id="signup-pin" maxlength="4" inputmode="numeric" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5] tracking-widest text-center text-xl" placeholder="••••">
-        </div>
-        <button id="btn-signup-submit" class="w-full bg-[#005CC5] text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm">가입하기</button>
-        
-        <!-- 로그인 이동 버튼 추가 -->
-        <p class="text-sm text-center text-slate-400 mt-4">
-          이미 계정이 있으신가요? <button id="btn-go-login" class="text-[#005CC5] font-semibold hover:underline">로그인으로 돌아가기</button>
-        </p>
+  <div id="signUpView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
+    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">처음 시작하기 (1/3)</h2>
+    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">사용하실 이름과 비밀번호를 설정해주세요.</p>
+    
+    <div style="margin-bottom: 10px;">
+      <input type="text" id="signUpNameInput" class="large-input" placeholder="이름 (예: 김수학)" autocomplete="off">
+    </div>
+    <div style="margin-bottom: 25px;">
+      <input type="password" id="signUpPasswordInput" class="large-input" placeholder="비밀번호" autocomplete="off">
+    </div>
+
+    <button id="step1NextBtn" class="next-btn">다음</button>
+    <button class="btn-outline" id="btnCancelSignUp" style="margin-top:10px;">취소 (돌아가기)</button>
+  </div>
+
+  <div id="preSetupSubView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
+    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">과목 등록 (2/3)</h2>
+    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">담당하시는 수업 과목을 모두 추가해주세요.<br><span style="color:#A0AEC0; font-size:12px;">(예: 수학, 기하, 미적분)</span></p>
+    
+    <div id="subInputContainer"></div>
+
+    <button class="btn-outline" id="btnAddSubInput" style="margin-bottom:25px; padding: 12px; font-size: 14px;"><i class="fa-solid fa-plus"></i> 과목 칸 추가</button>
+    <button class="next-btn" id="btnGoToStep3">다음</button>
+    <button class="btn-outline" id="btnBackToStep1" style="margin-top:10px;">이전 단계로</button>
+  </div>
+
+  <div id="preSetupGcView" class="view hidden" style="padding-top: 50px; padding-bottom: 60px;">
+    <h2 style="text-align:center; font-size:24px; margin-bottom:15px;">학년 및 반 등록 (3/3)</h2>
+    <p style="text-align:center; font-size:14px; margin-bottom:25px; line-height:1.5;">담당하시는 학년과 반 번호(쉼표 구분)를<br>입력해주세요.</p>
+    
+    <div id="gcInputContainer"></div>
+
+    <button class="btn-outline" id="btnAddGcInput" style="margin-bottom:25px; padding: 12px; font-size: 14px;"><i class="fa-solid fa-plus"></i> 다른 학년 추가</button>
+    <button class="next-btn" id="btnGoToTimetable">다음 (시간표 만들기)</button>
+    <button class="btn-outline" id="btnBackToStep2" style="margin-top:10px;">이전 단계로</button>
+  </div>
+
+  <div id="loadingView" class="view hidden" style="padding-top: 80px; padding-bottom: 80px; text-align:center;">
+    <i class="fa-solid fa-spinner fa-spin" style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"></i>
+    <div id="loadingText" style="color:var(--primary); font-weight:700; font-size:16px;">시간표를 준비하고 있습니다...</div>
+  </div>
+
+  <div id="dashView" class="view hidden">
+    <div class="app-header">
+      <div class="app-title">수업 대시보드</div>
+      <div class="settings-btn" id="btnOpenSettings"><i class="fa-solid fa-gear"></i></div>
+    </div>
+    <div class="date-nav">
+      <div class="nav-arrow" id="btnPrevDate"><i class="fa-solid fa-chevron-left"></i></div>
+      <div class="date-display">
+        <i class="fa-regular fa-calendar"></i>
+        <span id="dateText">조회 중...</span>
+        <input type="date" id="hiddenDate">
       </div>
+      <div class="nav-arrow" id="btnNextDate"><i class="fa-solid fa-chevron-right"></i></div>
+    </div>
+    <div id="dashList" class="content"></div>
+  </div>
+
+  <div id="inputView" class="view hidden">
+    <div class="view-header" style="align-items: center; margin-bottom: 20px;">
+      <div id="inputTitle" style="flex:1; margin:0;"></div>
+      <div class="close-x" id="btnCloseInput"><i class="fa-solid fa-xmark"></i></div>
+    </div>
+    <div style="margin-bottom:15px;">
+      <label style="font-weight:700; margin-bottom:5px; display:block; color:var(--text-main); font-size:14px;">오늘 진도</label>
+      <input type="text" id="progContent" class="large-input" placeholder="예: 교과서 p.120~125 완료" style="text-align:left;">
+    </div>
+    <div style="margin-bottom:15px;">
+      <label style="font-weight:700; margin-bottom:5px; display:block; color:var(--text-main); font-size:14px;">메모</label>
+      <textarea id="progNotes" rows="3" placeholder="기억해야 할 내용이나 특이사항을 입력하세요"></textarea>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <button type="button" class="btn-outline" id="btnToggleHistory" style="width:100%; font-size:13px; padding:10px; display:flex; justify-content:space-between; align-items:center; border-radius:10px; background:#F8FAFC !important; border-color:transparent !important;">
+        <span><i class="fa-regular fa-folder-open"></i> 이전 진도 및 메모 모아보기</span>
+        <i id="historyToggleIcon" class="fa-solid fa-chevron-down"></i>
+      </button>
+      <div id="historyContainer" class="hidden" style="margin-top:10px; padding:10px; background:white; border-radius:12px; border:1px dashed var(--border); max-height:220px; overflow-y:auto; font-size:13px;"></div>
+    </div>
+
+    <div class="action-row">
+      <button id="saveBtn">기록 저장</button>
     </div>
   </div>
 
-  <!-- 2. 메인 대시보드 화면 (초기에는 숨김) -->
-  <div id="dashboard-view" class="hidden max-w-2xl mx-auto px-4 py-6">
-    <header class="flex justify-between items-center mb-6">
-      <div>
-        <h1 id="today-date" class="text-2xl font-bold text-slate-900">00월 00일 (요일)</h1>
-        <p class="text-sm text-slate-500"><span id="user-name" class="font-semibold text-slate-700"></span> 선생님, 환영합니다.</p>
+  <div id="setupView" class="view hidden">
+    <div class="view-header" style="align-items: center;">
+      <h2 id="setupTitle">전체 시간표 수정</h2>
+      <div id="setupCloseBtn" class="close-x"><i class="fa-solid fa-xmark"></i></div>
+    </div>
+    
+    <div id="quickInputSection" style="margin-bottom: 15px; padding: 12px; background: white; border-radius: 12px; border: 1px dashed #CBD5E0; display: none;">
+      <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 12px;"><i class="fa-solid fa-bolt"></i> 빠른 입력</div>
+      <div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
+        <div style="width: 35px; font-size: 12px; font-weight: 700; color: var(--primary); flex-shrink: 0; padding-top: 6px;">과목</div>
+        <div id="quickSubBtns" class="grid-row"></div>
       </div>
-      <button id="btn-logout" class="text-sm text-slate-400 hover:text-red-500 font-medium">로그아웃</button>
-    </header>
+      <div style="display: flex; align-items: flex-start;">
+        <div style="width: 35px; font-size: 12px; font-weight: 700; color: #4A5568; flex-shrink: 0; padding-top: 6px;">학급</div>
+        <div id="quickGcBtns" class="grid-row"></div>
+      </div>
+    </div>
 
-    <!-- 오늘 수업 목록 리스트 -->
-    <div class="space-y-4">
-      <h3 class="text-lg font-semibold text-slate-700">오늘의 수업 시간표</h3>
-      <div id="timetable-list" class="space-y-3">
-        <!-- 자바스크립트가 여기에 수업 카드를 동적으로 생성합니다 -->
-        <p class="text-slate-400 text-center py-8">오늘 배치된 수업이 없습니다.</p>
-      </div>
+    <table class="setup-table">
+      <thead><tr><th style="width:30px"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
+      <tbody id="setupBody"></tbody>
+    </table>
+    
+    <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+      <button id="addPeriodBtn" class="btn-outline" style="padding: 8px 16px; border-radius: 20px; font-size: 13px; width: auto;"><i class="fa-solid fa-plus"></i> 교시 추가</button>
+      <button id="removePeriodBtn" class="btn-outline" style="padding: 8px 16px; border-radius: 20px; font-size: 13px; width: auto; color: var(--danger); border-color: #fca5a5;"><i class="fa-solid fa-minus"></i> 교시 삭제</button>
+    </div>
+
+    <div class="action-row">
+      <button id="saveSetupBtn">저장 및 반영</button>
+      <button id="clearSetupBtn" class="btn-danger btn-icon-only"><i class="fa-solid fa-trash-can"></i></button>
+    </div>
+    
+    <button id="setupLogoutBtn" class="btn-outline" style="margin-top:20px; padding:12px; font-size:14px;"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
+    <button id="setupCancelBtn" class="btn-outline hidden" style="margin-top:20px; padding:12px; font-size:14px;">가입 취소 (처음으로)</button>
+  </div>
+
+  <div id="customModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div id="customModalMsg" class="modal-msg"></div>
+      <div id="customModalBtns" class="modal-btn-group"></div>
     </div>
   </div>
 
-  <!-- 3. 진도 입력 모달 팝업창 (초기에는 숨김) -->
-  <div id="progress-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50">
-    <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl animate-fade-in">
-      <div class="flex justify-between items-start mb-4">
-        <div>
-          <span id="modal-badge" class="inline-block bg-blue-50 text-[#005CC5] text-xs font-semibold px-2 py-1 rounded mb-1">1교시 | 2학년 6반</span>
-          <h3 id="modal-title" class="text-xl font-bold text-slate-900">수학 진도 입력</h3>
-        </div>
-        <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+  <div id="installGuideModal" class="modal-overlay hidden">
+    <div class="modal-box" style="text-align: left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h3 style="margin:0; font-size:18px; color:var(--primary);">홈 화면에 앱 추가하기</h3>
+        <div class="close-x" id="btnCloseInstallGuide"><i class="fa-solid fa-xmark"></i></div>
       </div>
-      
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">이전 진도</label>
-          <div id="modal-prev-content" class="bg-slate-50 p-3 rounded-xl text-sm text-slate-600 border border-slate-100 min-h-[40px]">
-            이전 기록이 없습니다.
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">오늘 나간 진도</label>
-          <input type="text" id="input-content" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5]" placeholder="예: 교과서 45p ~ 48p 대단원 마무리">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">수업 메모</label>
-          <textarea id="input-memo" rows="3" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CC5]" placeholder="특이사항이나 다음 시간 전달사항을 적어주세요."></textarea>
-        </div>
-        <button id="btn-save-progress" class="w-full bg-[#005CC5] text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">진도 저장하기</button>
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700; color:#2B593F; margin-bottom:8px; display:flex; align-items:center; gap:5px;"><i class="fa-brands fa-android"></i> 안드로이드</div>
+        <ol style="margin:0; padding-left:20px; font-size:14px; color:var(--text-main); line-height:1.6;">
+          <li><strong>Chrome</strong> 브라우저로 접속합니다.</li>
+          <li>우측 상단의 <strong>메뉴 [⋮]</strong>를 누릅니다.</li>
+          <li><strong>[홈 화면에 추가]</strong>를 선택합니다.</li>
+        </ol>
       </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:700; color:#28456C; margin-bottom:8px; display:flex; align-items:center; gap:5px;"><i class="fa-brands fa-apple"></i> 아이폰</div>
+        <ol style="margin:0; padding-left:20px; font-size:14px; color:var(--text-main); line-height:1.6;">
+          <li><strong>Safari</strong> 브라우저로 접속합니다.</li>
+          <li>하단의 <strong>공유 [↑]</strong> 아이콘을 누릅니다.</li>
+          <li><strong>[홈 화면에 추가]</strong>를 선택합니다.</li>
+        </ol>
+      </div>
+      <button id="btnCloseGuideFinal" style="padding:12px; font-size:15px;">확인했습니다</button>
     </div>
   </div>
 
-  <!-- Vite 메인 자바스크립트 연결 -->
-  <script type="module" src="/main.js"></script>
+</div>
+
+<script type="module" src="/main.js"></script>
+
 </body>
 </html>
