@@ -38,7 +38,6 @@ async function initApp() {
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
 
-  // [중요] 대시보드 색상 일치를 위해 현재 사용자의 과목/반 목록을 미리 로드
   const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_name', state.user.name);
   if (current) {
     state.signUp.subs = [...new Set(current.map(i => i.subject))];
@@ -80,10 +79,14 @@ function initEvents() {
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   
-  // [수정] 날짜 텍스트 클릭 시 달력 열기
+  // 4. 날짜 텍스트 그룹 클릭 시 달력 열기 보강
   document.getElementById('dateTextGroup')?.addEventListener('click', () => {
     const picker = document.getElementById('datePicker');
-    if (picker && typeof picker.showPicker === 'function') picker.showPicker();
+    if (picker && typeof picker.showPicker === 'function') {
+        picker.showPicker();
+    } else {
+        picker.click(); // 폴백
+    }
   });
   
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
@@ -93,7 +96,6 @@ function initEvents() {
   });
 }
 
-// 편집 모드 제어
 window.toggleTagEditMode = () => {
     state.isTagEditMode = !state.isTagEditMode;
     const btnText = state.isTagEditMode ? "완료" : "편집";
@@ -206,7 +208,7 @@ window.fillCell = (type, val, color) => {
   }
 };
 
-// --- [수정] 대시보드 강화 로직 ---
+// 4. 대시보드 렌더링 및 크기/아이콘/색상 수정
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -221,11 +223,11 @@ async function fetchTimetable() {
 
   if (!basic.data?.length) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold">수업이 없는 날입니다 ☕️</div>`; return; }
 
+  // [수정] 한 번에 로드하기 위해 병렬로 HTML 생성
   const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('user_name', state.user.name).eq('grade_class', item.grade_class).eq('subject', item.subject).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
     
-    // [색상 일치 로직] 시간표와 동일하게 추출
     const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
     const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
 
@@ -234,9 +236,9 @@ async function fetchTimetable() {
            onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
         <div class="flex items-center justify-between mb-5">
           <div class="flex items-center gap-3">
-            <span class="text-[12px] font-black bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
-            <span class="px-3 py-1 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
-            <span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+            <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
+            <span class="px-2.5 py-1 rounded-full text-[11px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
           <div class="w-10 h-10 rounded-2xl ${today ? 'bg-blue-50 text-[#005CC5]' : 'bg-slate-50 text-slate-200'} flex items-center justify-center text-xl">
             <i class="fa-solid ${today ? 'fa-check-circle' : 'fa-pen-to-square'}"></i>
@@ -244,12 +246,12 @@ async function fetchTimetable() {
         </div>
         <div class="space-y-2 pl-1 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
           <div class="flex gap-2">
-            <span class="text-[10px] font-black text-slate-300 w-12 shrink-0">LAST</span>
+            <span class="text-[9px] font-black text-slate-300 w-10 shrink-0">LAST</span>
             <p class="text-[11px] font-bold text-slate-500 line-clamp-1">${prev?.content || '-'}</p>
           </div>
           <div class="flex gap-2">
-            <span class="text-[10px] font-black text-[#005CC5] w-12 shrink-0">TODAY</span>
-            <p class="text-[12px] font-black text-slate-700 line-clamp-1">${today ? today.content : '<span class="text-slate-300 font-medium italic">입력 전입니다</span>'}</p>
+            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 uppercase">Today</span>
+            <p class="text-[12px] font-black text-slate-700 line-clamp-1">${today ? today.content : '<span class="text-slate-200 font-medium italic text-[11px]">입력 전</span>'}</p>
           </div>
         </div>
       </div>`;
@@ -260,21 +262,30 @@ async function fetchTimetable() {
 
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;
-  document.getElementById('sheetBadge').innerText = item.grade_class;
-  document.getElementById('sheetTitle').innerText = `${item.subject} 진도 기록`;
+  
+  // 3. 입력창 상단 태그 렌더링 (대시보드와 동일 디자인)
+  const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
+  const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
+  
+  const tagHtml = `
+    <span class="text-[12px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span>
+    <span class="px-3 py-1 rounded-full text-[12px] font-black text-white" style="background:${subColor}">${item.subject}</span>
+    <span class="px-3 py-0.5 rounded-full text-[11px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+  `;
+  document.getElementById('sheetTagContainer').innerHTML = tagHtml;
+  
   document.getElementById('prevProgressText').innerText = prevContent;
   document.getElementById('progContent').value = todayRec ? todayRec.content : '';
   document.getElementById('progNote').value = todayRec ? todayRec.note : '';
   toggleSheet(true);
 };
 
-// 진도 저장 로직 (UNIQUE 제약 조건 필수)
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
   const note = document.getElementById('progNote')?.value.trim();
   const dateStr = state.activeDate.toISOString().split('T')[0];
 
-  if (!content) return alert('오늘 나간 진도를 입력해 주세요.');
+  if (!content) return alert('내용을 입력해 주세요.');
   
   showView('loadingView');
   try {
@@ -289,8 +300,6 @@ async function saveProgress() {
     }, { onConflict: 'user_name, date, period, grade_class, subject' });
 
     if (error) throw error;
-
-    alert('저장되었습니다.');
     toggleSheet(false);
     fetchTimetable();
   } catch (err) {
@@ -300,7 +309,7 @@ async function saveProgress() {
   }
 }
 
-// --- 공통 유틸리티 ---
+// --- 유틸리티 및 인증 ---
 async function handleLogin() {
   const n = document.getElementById('loginName')?.value.trim();
   const p = document.getElementById('loginPin')?.value.trim();
@@ -366,15 +375,18 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   const backB = document.getElementById('btnSignUpBack');
   const nextB = document.getElementById('btnNextStep');
+  const setupT = document.getElementById('setupTitle');
+
   if(state.isEditMode) {
       if(backB) backB.style.display = 'none';
       document.getElementById('progressWrapper').classList.add('hidden');
-      document.getElementById('setupTitle').innerText = "전체 시간표 수정";
+      setupT.innerText = "전체 시간표"; // 6, 7. 문구 수정
       nextB.innerText = "수정 완료";
   } else {
       if(backB) backB.style.display = 'flex';
       document.getElementById('progressWrapper').classList.remove('hidden');
       document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
+      setupT.innerText = "시간표 설정";
       nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
   }
   if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
