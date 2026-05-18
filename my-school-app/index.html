@@ -79,15 +79,11 @@
     </section>
 
     <section id="signUpContainer" class="view-transition hidden fixed inset-0 z-[100] bg-white flex flex-col">
-      <header id="signUpHeader" class="view-header flex justify-between items-end">
-        <div id="headerLeftArea" class="flex-1 text-left">
-            <div id="signupHeaderContent" class="flex items-center gap-4">
+      <header class="view-header flex justify-between items-end">
+        <div class="flex-1 text-left">
+            <div class="flex items-center gap-4">
                 <button id="btnSignUpBack" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 active:bg-slate-200 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
                 <div class="flex-1 h-1.5 bg-slate-100 rounded-full"><div id="signUpProgress" class="h-full bg-[#005CC5] transition-all duration-500 rounded-full"></div></div>
-            </div>
-            <div id="editHeaderContent" class="hidden text-left">
-                <p class="teacher-label"><span id="editTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
-                <h1 class="page-title">전체 시간표</h1>
             </div>
         </div>
         <button id="btnSignUpClose" class="header-action-btn ml-4"><i class="fa-solid fa-xmark text-xl"></i></button>
@@ -114,24 +110,53 @@
           <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4 shadow-sm">
             <div class="flex justify-between items-center px-1">
                 <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
-                <button onclick="window.toggleTagEditMode()" class="text-[9px] font-black px-2 py-1 bg-slate-50 text-[#005CC5] rounded-md border border-blue-50" id="btnEditTagsStep4">편집</button>
+                <button onclick="window.toggleTagEditMode(false)" class="text-[9px] font-black px-2 py-1 bg-slate-50 text-[#005CC5] rounded-md border border-blue-50" id="btnEditTagsSignup">편집</button>
             </div>
-            <div id="quickSubSection" class="flex flex-wrap gap-2 justify-center"></div>
+            <div id="quickSubSectionSignup" class="flex flex-wrap gap-2 justify-center"></div>
             <div class="h-px bg-slate-100 mx-4"></div>
-            <div id="quickGcSection" class="flex flex-wrap gap-2 justify-center"></div>
+            <div id="quickGcSectionSignup" class="flex flex-wrap gap-2 justify-center"></div>
           </div>
           <table class="setup-table">
             <thead><tr class="header-cell"><th class="w-8 py-2"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
-            <tbody id="setupTableBody"></tbody>
+            <tbody id="setupTableBodySignup"></tbody>
           </table>
-          <div class="flex gap-2 mt-4 justify-center">
-            <button id="btnAddPeriod" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black border">+ 교시</button>
-            <button id="btnRemovePeriod" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black text-rose-400 border">- 교시</button>
-          </div>
         </div>
       </div>
       <footer class="p-8 flex justify-center">
         <button id="btnNextStep" class="w-3/5 bg-slate-900 text-white py-3.5 rounded-2xl font-bold text-base active:scale-95 transition-all shadow-lg">다음 단계</button>
+      </footer>
+    </section>
+
+    <section id="editTimetableView" class="view-transition hidden fixed inset-0 z-[110] bg-white flex flex-col">
+      <header class="view-header flex justify-between items-end">
+        <div class="flex-1 text-left">
+            <p class="teacher-label"><span id="editViewTeacherName" class="teacher-name-highlight">...</span> 선생님</p>
+            <h1 class="page-title">전체 시간표 수정</h1>
+        </div>
+        <button id="btnEditViewClose" class="header-action-btn ml-4"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </header>
+
+      <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
+        <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4 shadow-sm">
+          <div class="flex justify-between items-center px-1">
+              <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">항목 선택</span>
+              <button onclick="window.toggleTagEditMode(true)" class="text-[9px] font-black px-2 py-1 bg-slate-50 text-[#005CC5] rounded-md border border-blue-50" id="btnEditTagsEditView">편집</button>
+          </div>
+          <div id="quickSubSectionEdit" class="flex flex-wrap gap-2 justify-center"></div>
+          <div class="h-px bg-slate-100 mx-4"></div>
+          <div id="quickGcSectionEdit" class="flex flex-wrap gap-2 justify-center"></div>
+        </div>
+        <table class="setup-table">
+          <thead><tr class="header-cell"><th class="w-8 py-2"></th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead>
+          <tbody id="setupTableBodyEdit"></tbody>
+        </table>
+        <div class="flex gap-2 mt-4 justify-center">
+          <button id="btnAddPeriodEdit" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black border">+ 교시</button>
+          <button id="btnRemovePeriodEdit" class="px-4 py-2 bg-slate-100 rounded-full text-[11px] font-black text-rose-400 border">- 교시</button>
+        </div>
+      </div>
+      <footer class="p-8 flex justify-center">
+        <button id="btnSaveEditedTimetable" class="w-3/5 bg-[#005CC5] text-white py-3.5 rounded-2xl font-bold text-base active:scale-95 transition-all shadow-lg">수정 완료</button>
       </footer>
     </section>
 
@@ -170,7 +195,7 @@
           </button>
           <button id="btnMenuEditTime" class="w-full p-5 rounded-2xl bg-slate-50 flex items-center gap-4 text-left">
             <div class="w-10 h-10 bg-blue-50 text-[#005CC5] rounded-xl flex items-center justify-center"><i class="fa-solid fa-calendar-days"></i></div>
-            <span class="font-bold text-slate-700">전체 시간표</span>
+            <span class="font-bold text-slate-700">전체 시간표 수정</span>
           </button>
           <button id="btnMenuInquiry" class="w-full p-5 rounded-2xl bg-slate-50 flex items-center gap-4 text-left">
             <div class="w-10 h-10 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center"><i class="fa-solid fa-comment-dots"></i></div>
@@ -184,17 +209,13 @@
       </div>
     </div>
 
-    <div id="iosInstallGuide" class="fixed inset-0 z-[250] hidden flex items-center justify-center px-8 text-center">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="document.getElementById('iosInstallGuide').classList.add('hidden')"></div>
-        <div class="relative bg-white rounded-[40px] p-8 w-full max-w-xs shadow-2xl">
-          <div class="w-16 h-16 bg-blue-50 text-[#005CC5] rounded-full flex items-center justify-center mx-auto mb-6 text-2xl"><i class="fa-solid fa-apple-whole"></i></div>
-          <h3 class="text-xl font-black text-slate-900 mb-4 tracking-tight">앱 설치하기</h3>
-          <div class="text-slate-500 font-bold text-sm space-y-4 mb-8 text-left bg-slate-50 p-5 rounded-2xl">
-            <p>1. 하단의 <i class="fa-solid fa-arrow-up-from-bracket text-blue-500"></i> 버튼 클릭</p>
-            <p>2. 리스트에서 <span class="text-slate-900">['홈 화면에 추가']</span> 선택</p>
-            <p>3. 우측 상단 <span class="text-blue-500">['추가']</span> 버튼 클릭</p>
-          </div>
-          <button onclick="document.getElementById('iosInstallGuide').classList.add('hidden')" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold active:scale-95 transition-all">확인</button>
+    <div id="inquiryPopup" class="fixed inset-0 z-[200] hidden flex items-center justify-center px-8 text-center">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-md" onclick="document.getElementById('inquiryPopup').classList.add('hidden')"></div>
+        <div class="relative bg-white rounded-[40px] p-10 w-full max-w-xs shadow-2xl">
+          <div class="w-20 h-20 bg-blue-50 text-[#005CC5] rounded-[32px] flex items-center justify-center mx-auto mb-8 text-3xl"><i class="fa-solid fa-paper-plane"></i></div>
+          <h3 class="text-2xl font-black text-slate-900 mb-4 tracking-tight">문의 안내</h3>
+          <p class="text-slate-500 font-bold text-[15px] leading-relaxed mb-10">전주솔내고등학교 소속<br><span class="text-[#005CC5] font-black">김종식 선생님</span>께<br>JB메신저 쪽지를 보내주세요.</p>
+          <button onclick="document.getElementById('inquiryPopup').classList.add('hidden')" class="w-full bg-slate-900 text-white py-5 rounded-[24px] font-bold text-lg active:scale-95 transition-all shadow-lg">확인</button>
         </div>
     </div>
 
@@ -223,27 +244,8 @@
         </div>
     </div>
 
-    <div id="inquiryPopup" class="fixed inset-0 z-[200] hidden flex items-center justify-center px-8 text-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-md" onclick="document.getElementById('inquiryPopup').classList.add('hidden')"></div>
-        <div class="relative bg-white rounded-[40px] p-10 w-full max-w-xs shadow-2xl">
-          <div class="w-20 h-20 bg-blue-50 text-[#005CC5] rounded-[32px] flex items-center justify-center mx-auto mb-8 text-3xl"><i class="fa-solid fa-paper-plane"></i></div>
-          <h3 class="text-2xl font-black text-slate-900 mb-4 tracking-tight">문의 안내</h3>
-          <p class="text-slate-500 font-bold text-[15px] leading-relaxed mb-10">전주솔내고등학교 소속<br><span class="text-[#005CC5] font-black">김종식 선생님</span>께<br>JB메신저 쪽지를 보내주세요.</p>
-          <button onclick="document.getElementById('inquiryPopup').classList.add('hidden')" class="w-full bg-slate-900 text-white py-5 rounded-[24px] font-bold text-lg active:scale-95 transition-all shadow-lg">확인</button>
-        </div>
-    </div>
-
   </div>
 
   <script type="module" src="/main.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=3')
-          .then(reg => console.log('✅ SW Registered'))
-          .catch(err => console.error('❌ SW Failed', err));
-      });
-    }
-  </script>
 </body>
 </html>
