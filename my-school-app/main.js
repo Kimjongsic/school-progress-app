@@ -20,12 +20,10 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// [핵심] 이메일 대신 사용할 내부 식별자 생성기 (에러 방지용)
 function generateInternalId(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  // 이메일 형식을 빌려 쓰되, 실제 메일 발송이 없는 '내부 전용 주소'를 만듭니다.
   return `id_${hexName}_${pin}@internal.school`;
 }
 
@@ -116,28 +114,18 @@ function initEvents() {
   document.getElementById('datePicker')?.addEventListener('change', (e) => { state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable(); });
 }
 
-// [Auth] 로그인 처리
 async function handleLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin = document.getElementById('loginPin').value.trim();
   if(!name || !pin) return alert('정보를 입력하세요.');
-  
   const internalId = generateInternalId(name, pin);
-  const password = `${pin}0000`; // 보안을 위해 PIN 기반 고정 암호 생성
-
+  const password = `${pin}0000`;
   showView('loadingView');
   const { data, error } = await supabase.auth.signInWithPassword({ email: internalId, password: password });
-  
-  if (error) { 
-    alert('로그인 실패: 성함과 비밀번호를 다시 확인해 주세요.'); 
-    showView('loginView'); 
-  } else { 
-    state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; 
-    initApp(); 
-  }
+  if (error) { alert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
+  else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
-// [Auth] 회원가입 최종 제출
 async function handleFinalSignUpSubmit() {
   const btn = document.getElementById('btnNextStep');
   if (btn.disabled) return;
@@ -151,14 +139,15 @@ async function handleFinalSignUpSubmit() {
   btn.innerText = "처리 중...";
   showView('loadingView');
 
-  const { data, error } = await supabase.auth.signUp({ 
+  // 1. Auth 계정 생성
+  const { data, error: authError } = await supabase.auth.signUp({ 
     email: internalId, 
     password: password, 
     options: { data: { full_name: name } } 
   });
 
-  if (error) { 
-    alert('가입 실패: ' + error.message); 
+  if (authError) { 
+    alert('가입 실패: ' + authError.message); 
     btn.disabled = false;
     btn.innerText = "가입 완료";
     showView('signUpContainer'); 
@@ -166,9 +155,19 @@ async function handleFinalSignUpSubmit() {
   }
 
   const userId = data.user.id;
+
   try {
-    // profiles 테이블 기록 (PIN 포함)
-    await supabase.from('profiles').insert({ user_id: userId, name: name, pin_code: pin });
+    // 2. profiles 테이블 기록 시도
+    const { error: profileError } = await supabase.from('profiles').insert({ 
+      user_id: userId, 
+      name: name, 
+      pin_code: pin 
+    });
+
+    if (profileError) {
+      console.error("DB 프로필 저장 에러:", profileError);
+      throw new Error("프로필 저장 실패 (RLS 권한 확인 필요)");
+    }
 
     const timetableData = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -183,12 +182,16 @@ async function handleFinalSignUpSubmit() {
       }
     });
 
-    if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
+    if (timetableData.length) {
+      const { error: timeError } = await supabase.from('basic_timetable').insert(timetableData);
+      if (timeError) throw timeError;
+    }
     
-    alert('환영합니다! 회원가입이 완료되었습니다.'); 
+    alert('환영합니다! 가입이 완료되었습니다.'); 
     location.reload();
   } catch (err) { 
-    alert('데이터 저장 중 오류가 발생했습니다.'); 
+    console.error("최종 저장 에러:", err);
+    alert('계정은 생성되었으나 DB 저장에 실패했습니다: ' + err.message); 
     btn.disabled = false;
     btn.innerText = "가입 완료";
   }
@@ -208,17 +211,14 @@ async function handleNextButton() {
 window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
-    // 2, 3단계는 상시 편집 모드
     const isSignupStep = (state.signUp.step === 2 || state.signUp.step === 3);
     const showControls = isSignupStep || state.isTagEditMode;
-
     const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
     let html = arr.map((tag, i) => {
         const color = type === 'sub' ? subPalette[state.signUp.subs.indexOf(tag) % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
         return `<div class="tag-chip">${showControls ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
-    
     if (showControls) {
         html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
