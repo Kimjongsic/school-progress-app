@@ -19,7 +19,7 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- 커스텀 알림 UI 제어 ---
+// --- 커스텀 알림 UI 제어 함수 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -103,7 +103,7 @@ function initEvents() {
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
   document.getElementById('btnEditViewClose')?.addEventListener('click', () => {
-    if(confirm('수정 중인 내용이 저장되지 않았습니다.')) initApp();
+    if(confirm('수정 중인 내용이 저장되지 않았습니다. 닫으시겠습니까?')) initApp();
   });
   document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
   document.getElementById('btnAddPeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true, 'Edit'); }});
@@ -150,18 +150,38 @@ async function handleLogin() {
   else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
+// 회원가입 단계 이동 시 핵심 체크 로직
 async function handleNextButton() {
   const step = state.signUp.step;
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
+
+    // --- 가입 단계 1에서 즉시 가입 여부 확인 ---
     showView('loadingView');
-    const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
-    if (data) { showView('signUpContainer'); return showAlert('이미 가입된 이름입니다.'); }
-    showView('signUpContainer'); state.signUp.step++; updateSignUpUI();
-  } else if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
-  else handleFinalSignUpSubmit();
+    try {
+        const { data: existingUser, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+        if (existingUser) {
+            showView('signUpContainer'); // 가입 폼 복구
+            return showAlert('이미 가입된 이름입니다.');
+        }
+    } catch (e) {
+        console.error("중복 체크 오류:", e);
+    }
+    
+    // 중복 없으면 로딩 끄고 다음 단계로
+    showView('signUpContainer');
+    state.signUp.step++; 
+    updateSignUpUI();
+  } 
+  else if (step < 4) { 
+    state.signUp.step++; 
+    updateSignUpUI(); 
+  } 
+  else {
+    handleFinalSignUpSubmit();
+  }
 }
 
 async function handleFinalSignUpSubmit() {
@@ -170,8 +190,14 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
   btn.disabled = true; showView('loadingView');
-  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
+  const { data, error } = await supabase.auth.signUp({ 
+    email: internalId, 
+    password: `${pin}0000`, 
+    options: { data: { full_name: name } } 
+  });
+
   if (error) { showAlert('가입 실패: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
@@ -410,7 +436,7 @@ async function saveProgress() {
   if (!content) return showAlert('내용을 입력하세요.');
   showView('loadingView');
   try {
-    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: state.activeDate.toISOString().split('T')[0], period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: '-' });
+    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: state.activeDate.toISOString().split('T')[0], period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: '-' }, { onConflict: 'user_id, date, period, grade_class, subject' });
     toggleSheet(false); fetchTimetable();
   } catch (err) { showAlert('저장 실패'); } finally { showView('mainView'); }
 }
