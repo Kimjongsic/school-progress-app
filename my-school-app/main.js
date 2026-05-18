@@ -14,6 +14,8 @@ let state = {
   selectedItem: null
 };
 
+let deferredPrompt;
+
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
@@ -41,6 +43,9 @@ function generateInternalId(name, pin) {
 window.onload = async () => {
   await checkSession();
   initEvents();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error(err));
+  }
 };
 
 async function checkSession() {
@@ -50,7 +55,26 @@ async function checkSession() {
     initApp();
   } else {
     showView('loginView');
+    checkInstallButtonVisibility();
   }
+}
+
+// 앱 설치 버튼 표시 여부 체크 로직 보강
+function checkInstallButtonVisibility() {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
+    
+    // 이미 앱으로 접속 중이면 숨김
+    if (isStandalone) {
+        installBtns.forEach(btn => btn?.classList.add('hidden'));
+        return;
+    }
+
+    // iOS는 가이드 안내를 위해 무조건 노출, Android/PC는 deferredPrompt가 있을 때 노출
+    if (isIOS || deferredPrompt) {
+        installBtns.forEach(btn => btn?.classList.remove('hidden'));
+    }
 }
 
 function showView(id) {
@@ -72,6 +96,7 @@ async function initApp() {
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI(); fetchTimetable();
+  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -87,6 +112,28 @@ function initEvents() {
   document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
+
+  const handleInstallClick = async () => {
+    toggleSettings(false);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+          [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
+      }
+      deferredPrompt = null;
+    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      document.getElementById('iosInstallGuide')?.classList.remove('hidden');
+    }
+  };
+  document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstallClick);
+  document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstallClick);
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    checkInstallButtonVisibility();
+  });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
@@ -107,18 +154,19 @@ async function handleLogin() {
   else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
-// 회원가입 단계 이동 로직 (이름 중복 체크 포함)
+// 중복 가입 체크 로직을 포함한 단계 이동 함수
 async function handleNextButton() {
   const step = state.signUp.step;
+  
+  // 가입 단계 1에서 '다음' 누를 때
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    // --- 가입 체크 시작 ---
-    showView('loadingView'); // 로딩 화면 표시
+    // 중복 확인 프로세스
+    showView('loadingView'); 
     try {
-        // profiles 테이블에서 이름 검색
         const { data: existingUser, error } = await supabase
             .from('profiles')
             .select('name')
@@ -127,27 +175,31 @@ async function handleNextButton() {
 
         if (error) throw error;
 
+        // 이미 가입된 사용자가 있으면 여기서 중단
         if (existingUser) {
-            // 이름이 이미 있으면 멈춤
-            showView('signUpContainer'); // 다시 가입 화면으로
+            showView('signUpContainer');
             showAlert('이미 가입된 이름입니다.');
-            return; // **여기서 리턴하여 아래 코드가 실행되지 않게 함**
+            return; // **중요: 다음 코드가 실행되지 않도록 확실히 끊어줌**
         }
     } catch (e) {
-        console.error("체크 실패:", e);
+        console.error("중복 체크 오류:", e);
         showView('signUpContainer');
-        return showAlert('서버 연결에 실패했습니다.');
+        return showAlert('통신 오류가 발생했습니다.');
     }
     
-    // 중복이 없을 때만 실행되는 코드
+    // 중복이 없을 때만 다음 단계로 이동
     showView('signUpContainer');
-    state.signUp.step = 2; // 다음 단계로 강제 설정
+    state.signUp.step = 2; 
     updateSignUpUI();
+    return; // step 1 로직 끝
   } 
-  else if (step < 4) { 
+
+  // 그 외 단계들 (Step 2, 3)
+  if (step < 4) { 
     state.signUp.step++; 
     updateSignUpUI(); 
   } 
+  // 마지막 단계 (Step 4)
   else {
     handleFinalSignUpSubmit();
   }
@@ -172,7 +224,7 @@ async function handleFinalSignUpSubmit() {
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
     showAlert('가입이 완료되었습니다!'); location.reload();
-  } catch (err) { showAlert('저장 실패'); btn.disabled = false; }
+  } catch (err) { showAlert('데이터 저장 중 오류가 발생했습니다.'); btn.disabled = false; }
 }
 
 async function handleUpdateTimetable() {
@@ -222,8 +274,10 @@ window.renderTags = (type, suffix) => {
 }
 
 window.showInlineInput = (type, suffix) => {
-    document.getElementById(`btnShow${type}Input${suffix}`)?.classList.add('hidden');
-    document.getElementById(`${type}InputWrap${suffix}`)?.classList.remove('hidden');
+    const btn = document.getElementById(`btnShow${type}Input${suffix}`);
+    const wrap = document.getElementById(`${type}InputWrap${suffix}`);
+    if (btn) btn.classList.add('hidden');
+    if (wrap) wrap.classList.remove('hidden');
     const input = document.getElementById(`${type}MiniInput${suffix}`);
     input?.focus();
     input.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, suffix); };
