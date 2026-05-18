@@ -20,12 +20,13 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// Supabase 표준 이메일 형식 생성 함수
-function generateFakeEmail(name, pin) {
+// [핵심] 이메일 대신 사용할 내부 식별자 생성기 (에러 방지용)
+function generateInternalId(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  return `user_${hexName}${pin}@gmail.com`;
+  // 이메일 형식을 빌려 쓰되, 실제 메일 발송이 없는 '내부 전용 주소'를 만듭니다.
+  return `id_${hexName}_${pin}@internal.school`;
 }
 
 window.onload = async () => {
@@ -115,46 +116,60 @@ function initEvents() {
   document.getElementById('datePicker')?.addEventListener('change', (e) => { state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable(); });
 }
 
+// [Auth] 로그인 처리
 async function handleLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin = document.getElementById('loginPin').value.trim();
   if(!name || !pin) return alert('정보를 입력하세요.');
-  const email = generateFakeEmail(name, pin);
-  const password = `${pin}0000`;
+  
+  const internalId = generateInternalId(name, pin);
+  const password = `${pin}0000`; // 보안을 위해 PIN 기반 고정 암호 생성
+
   showView('loadingView');
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) { alert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
-  else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
+  const { data, error } = await supabase.auth.signInWithPassword({ email: internalId, password: password });
+  
+  if (error) { 
+    alert('로그인 실패: 성함과 비밀번호를 다시 확인해 주세요.'); 
+    showView('loginView'); 
+  } else { 
+    state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; 
+    initApp(); 
+  }
 }
 
+// [Auth] 회원가입 최종 제출
 async function handleFinalSignUpSubmit() {
   const btn = document.getElementById('btnNextStep');
-  if (btn.disabled) return; 
+  if (btn.disabled) return;
 
   const name = document.getElementById('regName').value.trim();
   const pin = document.getElementById('regPin').value.trim();
-  const email = generateFakeEmail(name, pin);
+  const internalId = generateInternalId(name, pin);
   const password = `${pin}0000`;
 
-  // 버튼 비활성화 및 로딩 표시
   btn.disabled = true;
   btn.innerText = "처리 중...";
   showView('loadingView');
 
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
-  
+  const { data, error } = await supabase.auth.signUp({ 
+    email: internalId, 
+    password: password, 
+    options: { data: { full_name: name } } 
+  });
+
   if (error) { 
-    console.error("회원가입 에러:", error);
     alert('가입 실패: ' + error.message); 
-    btn.disabled = false; // 실패 시 버튼 복구
-    btn.innerText = state.isEditMode ? "수정 완료" : "가입 완료";
+    btn.disabled = false;
+    btn.innerText = "가입 완료";
     showView('signUpContainer'); 
     return; 
   }
 
   const userId = data.user.id;
   try {
-    await supabase.from('profiles').insert({ user_id: userId, name: name });
+    // profiles 테이블 기록 (PIN 포함)
+    await supabase.from('profiles').insert({ user_id: userId, name: name, pin_code: pin });
+
     const timetableData = [];
     ['월','화','수','목','금'].forEach(d => {
       for (let p = 1; p <= state.maxPeriods; p++) {
@@ -162,16 +177,20 @@ async function handleFinalSignUpSubmit() {
         const gcBtn = document.querySelector(`.gc-cell[data-day="${d}"][data-p="${p}"]`);
         const sub = subBtn?.dataset.fullName || subBtn?.innerText;
         const gc = gcBtn?.innerText;
-        if (sub && sub !== '과목' && gc && gc !== '반') timetableData.push({ user_id: userId, user_name: name, day: d, period: p, subject: sub, grade_class: gc });
+        if (sub && sub !== '과목' && gc && gc !== '반') {
+            timetableData.push({ user_id: userId, user_name: name, day: d, period: p, subject: sub, grade_class: gc });
+        }
       }
     });
+
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
-    alert('가입이 완료되었습니다!'); location.reload();
+    
+    alert('환영합니다! 회원가입이 완료되었습니다.'); 
+    location.reload();
   } catch (err) { 
     alert('데이터 저장 중 오류가 발생했습니다.'); 
     btn.disabled = false;
     btn.innerText = "가입 완료";
-    showView('signUpContainer');
   }
 }
 
@@ -186,18 +205,20 @@ async function handleNextButton() {
   else handleFinalSignUpSubmit();
 }
 
-// 태그 렌더링 및 UI 업데이트 로직 (기존과 동일)
 window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
+    // 2, 3단계는 상시 편집 모드
     const isSignupStep = (state.signUp.step === 2 || state.signUp.step === 3);
     const showControls = isSignupStep || state.isTagEditMode;
+
     const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
     let html = arr.map((tag, i) => {
         const color = type === 'sub' ? subPalette[state.signUp.subs.indexOf(tag) % subPalette.length] : (gradePalette[tag[0]] || gradePalette.default);
         const style = type === 'sub' ? `background:${color}; color:white; border:none;` : `color:${color}; border:2px solid ${color}; background:white;`;
         return `<div class="tag-chip">${showControls ? `<button onclick="window.removeTag('${type}', ${i}, '${containerId}')" class="absolute -top-2 -left-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] z-10 shadow-sm"><i class="fa-solid fa-minus"></i></button>` : ''}<button onclick="window.fillCell('${type}', '${tag}', '${color}')" class="px-4 py-2 rounded-2xl text-xs font-black shadow-sm active:scale-95 transition-all" style="${style}">${tag}</button></div>`;
     }).join('');
+    
     if (showControls) {
         html += `<button onclick="window.showInlineInput('${type}', '${containerId}')" id="btnShow${type}Input" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center active:scale-90 border-2 border-dashed border-slate-200 transition-all"><i class="fa-solid fa-plus text-xs"></i></button><div id="${type}InputWrap" class="hidden flex items-center gap-1"><input type="text" id="${type}MiniInput" class="mini-input-chip"><button onclick="window.submitInlineInput('${type}', '${containerId}')" class="w-10 h-8 rounded-lg bg-[#005CC5] text-white text-[11px] font-black">확인</button></div>`;
     }
