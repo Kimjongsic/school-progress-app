@@ -19,7 +19,7 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- UI 헬퍼 함수 ---
+// --- UI 알림 및 뷰 제어 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -46,7 +46,7 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
-// --- 앱 초기화 및 이벤트 ---
+// --- 앱 초기화 ---
 window.onload = () => {
   initEvents();
   checkSession();
@@ -91,6 +91,7 @@ async function initApp() {
   updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
 }
 
+// --- 이벤트 바인딩 ---
 function initEvents() {
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
@@ -135,6 +136,8 @@ function initEvents() {
 }
 
 // --- 코어 비즈니스 로직 ---
+
+// 가입 단계 이동 및 Step 1 중복 체크
 async function handleNextButton() {
   const step = state.signUp.step;
   if (step === 1) {
@@ -142,25 +145,33 @@ async function handleNextButton() {
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    // 계정 설정 단계(Step 1)에서 이름 중복 체크
+    // Step 1에서 즉시 중복 체크 (await 사용)
     showView('loadingView');
     try {
         const { data: existingUser, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
         if (error) throw error;
         if (existingUser) {
-            showView('signUpContainer');
+            showView('signUpContainer'); // 로딩 끄고 복구
             showAlert('이미 가입된 이름입니다.');
-            return; // 중복 발견 시 중단
+            return; // 중복이면 함수 종료 (다음 단계 안 넘어감)
         }
     } catch (e) {
         showView('signUpContainer');
-        return showAlert('통신 오류가 발생했습니다.');
+        return showAlert('서버 확인 중 오류가 발생했습니다.');
     }
-    showView('signUpContainer'); state.signUp.step = 2; updateSignUpUI(); return;
+    // 중복 없으면 다음 단계로
+    showView('signUpContainer');
+    state.signUp.step = 2; 
+    updateSignUpUI();
+    return;
   } 
 
-  if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
-  else { handleFinalSignUpSubmit(); }
+  if (step < 4) { 
+    state.signUp.step++; 
+    updateSignUpUI(); 
+  } else {
+    handleFinalSignUpSubmit();
+  }
 }
 
 async function handleLogin() {
@@ -180,8 +191,14 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
   btn.disabled = true; showView('loadingView');
-  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
-  if (error) { showAlert('가입 실패: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  const { data, error } = await supabase.auth.signUp({ 
+    email: internalId, 
+    password: `${pin}0000`, 
+    options: { data: { full_name: name } } 
+  });
+
+  if (error) { showAlert('가입 처리 중 오류 발생: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
@@ -201,7 +218,7 @@ async function handleUpdateTimetable() {
   } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
-// --- 데이터 및 렌더링 로직 ---
+// --- 렌더링 및 태그 관리 로직 (전체 복구) ---
 function gatherTimetableData(userId, userName, suffix) {
     const data = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -329,6 +346,7 @@ async function openEditTimetable() {
     });
 }
 
+// --- 대시보드 로직 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -369,7 +387,7 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
-// --- UI 상태 제어 ---
+// --- UI 상태 관리 ---
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');
@@ -404,6 +422,17 @@ window.toggleTagEditMode = (isEditView) => {
     const btn = document.getElementById(isEditView ? 'btnEditTagsEditView' : 'btnEditTagsSignup');
     if(btn) btn.innerText = state.isTagEditMode ? "완료" : "편집";
     renderSetupGrid(true, suffix);
+};
+
+window.openInputSheet = (item, prevContent, todayRec) => {
+  state.selectedItem = item;
+  const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
+  const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
+  const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
+  document.getElementById('sheetTagContainer').innerHTML = tagHtml;
+  document.getElementById('prevProgressText').innerText = prevContent;
+  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
+  toggleSheet(true);
 };
 
 async function saveProgress() {

@@ -232,6 +232,20 @@
       </div>
     </div>
 
+    <div id="iosInstallGuide" class="fixed inset-0 z-[250] hidden flex items-center justify-center px-8 text-center">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="document.getElementById('iosInstallGuide').classList.add('hidden')"></div>
+        <div class="relative bg-white rounded-[40px] p-8 w-full max-w-xs shadow-2xl">
+          <div class="w-16 h-16 bg-blue-50 text-[#005CC5] rounded-full flex items-center justify-center mx-auto mb-6 text-2xl"><i class="fa-solid fa-apple-whole"></i></div>
+          <h3 class="text-xl font-black text-slate-900 mb-4 tracking-tight">앱 설치하기</h3>
+          <div class="text-slate-500 font-bold text-sm space-y-4 mb-8 text-left bg-slate-50 p-5 rounded-2xl">
+            <p>1. 하단의 <i class="fa-solid fa-arrow-up-from-bracket text-blue-500"></i> 버튼 클릭</p>
+            <p>2. 리스트에서 <span class="text-slate-900">['홈 화면에 추가']</span> 선택</p>
+            <p>3. 우측 상단 <span class="text-blue-500">['추가']</span> 버튼 클릭</p>
+          </div>
+          <button onclick="document.getElementById('iosInstallGuide').classList.add('hidden')" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold active:scale-95 transition-all">확인</button>
+        </div>
+    </div>
+
     <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300">
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12 text-left">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
