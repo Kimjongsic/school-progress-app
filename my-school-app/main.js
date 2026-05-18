@@ -20,12 +20,12 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// [중요 수정] Supabase가 거절하지 못하도록 표준 형식으로 이메일 생성
+// Supabase 표준 이메일 형식 생성 함수
 function generateFakeEmail(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  return `user_${hexName}${pin}@gmail.com`; // .com 도메인 사용
+  return `user_${hexName}${pin}@gmail.com`;
 }
 
 window.onload = async () => {
@@ -128,13 +128,30 @@ async function handleLogin() {
 }
 
 async function handleFinalSignUpSubmit() {
+  const btn = document.getElementById('btnNextStep');
+  if (btn.disabled) return; 
+
   const name = document.getElementById('regName').value.trim();
   const pin = document.getElementById('regPin').value.trim();
   const email = generateFakeEmail(name, pin);
   const password = `${pin}0000`;
+
+  // 버튼 비활성화 및 로딩 표시
+  btn.disabled = true;
+  btn.innerText = "처리 중...";
   showView('loadingView');
+
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
-  if (error) { alert('가입 실패: ' + error.message); showView('signUpContainer'); return; }
+  
+  if (error) { 
+    console.error("회원가입 에러:", error);
+    alert('가입 실패: ' + error.message); 
+    btn.disabled = false; // 실패 시 버튼 복구
+    btn.innerText = state.isEditMode ? "수정 완료" : "가입 완료";
+    showView('signUpContainer'); 
+    return; 
+  }
+
   const userId = data.user.id;
   try {
     await supabase.from('profiles').insert({ user_id: userId, name: name });
@@ -150,7 +167,12 @@ async function handleFinalSignUpSubmit() {
     });
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
     alert('가입이 완료되었습니다!'); location.reload();
-  } catch (err) { alert('데이터 저장 실패'); }
+  } catch (err) { 
+    alert('데이터 저장 중 오류가 발생했습니다.'); 
+    btn.disabled = false;
+    btn.innerText = "가입 완료";
+    showView('signUpContainer');
+  }
 }
 
 async function handleNextButton() {
@@ -164,6 +186,7 @@ async function handleNextButton() {
   else handleFinalSignUpSubmit();
 }
 
+// 태그 렌더링 및 UI 업데이트 로직 (기존과 동일)
 window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -346,33 +369,6 @@ async function handleConfirmMove() {
     finally { showView('mainView'); }
 }
 
-window.toggleTagEditMode = () => {
-    state.isTagEditMode = !state.isTagEditMode;
-    const btn = document.getElementById('btnEditTagsStep4');
-    if(btn) btn.innerText = state.isTagEditMode ? "완료" : "편집";
-    renderSetupGrid(true);
-};
-
-function updateSignUpUI() {
-  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
-  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
-  const backB = document.getElementById('btnSignUpBack');
-  const nextB = document.getElementById('btnNextStep');
-  const signupH = document.getElementById('signupHeaderContent');
-  const editH = document.getElementById('editHeaderContent');
-  if(state.isEditMode) {
-      if(backB) backB.style.display = 'none'; if(signupH) signupH.classList.add('hidden'); if(editH) editH.classList.remove('hidden');
-      nextB.innerText = "수정 완료";
-  } else {
-      if(backB) backB.style.display = 'flex'; if(signupH) signupH.classList.remove('hidden'); if(editH) editH.classList.add('hidden');
-      document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
-      nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
-  }
-  if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
-  else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
-  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
-}
-
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');
@@ -412,6 +408,33 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   document.getElementById('progNote').value = todayRec ? todayRec.note : '';
   toggleSheet(true);
 };
+
+window.toggleTagEditMode = () => {
+    state.isTagEditMode = !state.isTagEditMode;
+    const btn = document.getElementById('btnEditTagsStep4');
+    if(btn) btn.innerText = state.isTagEditMode ? "완료" : "편집";
+    renderSetupGrid(true);
+};
+
+function updateSignUpUI() {
+  document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
+  const backB = document.getElementById('btnSignUpBack');
+  const nextB = document.getElementById('btnNextStep');
+  const signupH = document.getElementById('signupHeaderContent');
+  const editH = document.getElementById('editHeaderContent');
+  if(state.isEditMode) {
+      if(backB) backB.style.display = 'none'; if(signupH) signupH.classList.add('hidden'); if(editH) editH.classList.remove('hidden');
+      nextB.innerText = "수정 완료";
+  } else {
+      if(backB) backB.style.display = 'flex'; if(signupH) signupH.classList.remove('hidden'); if(editH) editH.classList.add('hidden');
+      document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
+      nextB.innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
+  }
+  if (state.signUp.step === 2) window.renderTags('sub', 'subTagContainer');
+  else if (state.signUp.step === 3) window.renderTags('gc', 'gcTagContainer');
+  else if (state.signUp.step === 4) renderSetupGrid(state.isEditMode);
+}
 
 async function openEditTimetable() {
     toggleSettings(false); state.isEditMode = true; state.signUp.step = 4;
