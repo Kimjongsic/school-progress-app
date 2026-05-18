@@ -14,12 +14,10 @@ let state = {
   selectedItem: null
 };
 
-let deferredPrompt;
-
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- 커스텀 알림 UI 제어 함수 ---
+// --- 커스텀 알림 UI 제어 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -43,9 +41,6 @@ function generateInternalId(name, pin) {
 window.onload = async () => {
   await checkSession();
   initEvents();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error(err));
-  }
 };
 
 async function checkSession() {
@@ -55,19 +50,7 @@ async function checkSession() {
     initApp();
   } else {
     showView('loginView');
-    checkInstallButtonVisibility();
   }
-}
-
-function checkInstallButtonVisibility() {
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-    const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
-    if (isStandalone) {
-        installBtns.forEach(btn => btn?.classList.add('hidden'));
-        return;
-    }
-    if (isIOS || deferredPrompt) installBtns.forEach(btn => btn?.classList.remove('hidden'));
 }
 
 function showView(id) {
@@ -89,7 +72,6 @@ async function initApp() {
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI(); fetchTimetable();
-  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -102,34 +84,9 @@ function initEvents() {
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
-  document.getElementById('btnEditViewClose')?.addEventListener('click', () => {
-    if(confirm('수정 중인 내용이 저장되지 않았습니다. 닫으시겠습니까?')) initApp();
-  });
   document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
-  document.getElementById('btnAddPeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true, 'Edit'); }});
-  document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
-
-  document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
-  document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
-  document.getElementById('btnSettings')?.addEventListener('click', () => toggleSettings(true));
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
-
-  const handleInstall = async () => {
-    toggleSettings(false);
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
-      deferredPrompt = null;
-    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      document.getElementById('iosInstallGuide')?.classList.remove('hidden');
-    }
-  };
-  document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstall);
-  document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstall);
-
-  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; checkInstallButtonVisibility(); });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
@@ -150,7 +107,7 @@ async function handleLogin() {
   else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
-// 회원가입 단계 이동 시 핵심 체크 로직
+// 회원가입 단계 이동 로직 (이름 중복 체크 포함)
 async function handleNextButton() {
   const step = state.signUp.step;
   if (step === 1) {
@@ -158,21 +115,33 @@ async function handleNextButton() {
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    // --- 가입 단계 1에서 즉시 가입 여부 확인 ---
-    showView('loadingView');
+    // --- 가입 체크 시작 ---
+    showView('loadingView'); // 로딩 화면 표시
     try {
-        const { data: existingUser, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+        // profiles 테이블에서 이름 검색
+        const { data: existingUser, error } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('name', name)
+            .maybeSingle();
+
+        if (error) throw error;
+
         if (existingUser) {
-            showView('signUpContainer'); // 가입 폼 복구
-            return showAlert('이미 가입된 이름입니다.');
+            // 이름이 이미 있으면 멈춤
+            showView('signUpContainer'); // 다시 가입 화면으로
+            showAlert('이미 가입된 이름입니다.');
+            return; // **여기서 리턴하여 아래 코드가 실행되지 않게 함**
         }
     } catch (e) {
-        console.error("중복 체크 오류:", e);
+        console.error("체크 실패:", e);
+        showView('signUpContainer');
+        return showAlert('서버 연결에 실패했습니다.');
     }
     
-    // 중복 없으면 로딩 끄고 다음 단계로
+    // 중복이 없을 때만 실행되는 코드
     showView('signUpContainer');
-    state.signUp.step++; 
+    state.signUp.step = 2; // 다음 단계로 강제 설정
     updateSignUpUI();
   } 
   else if (step < 4) { 
