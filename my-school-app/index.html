@@ -53,6 +53,10 @@
         z-index: 150;
     }
     .sheet-open { transform: translateY(0) !important; }
+
+    /* 중복 확인 버튼용 스타일 */
+    .btn-verify { transition: all 0.2s; }
+    .btn-verified { background-color: #10B981 !important; color: white !important; }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -120,7 +124,11 @@
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
         <div id="step1" class="signUpStep hidden text-left">
           <h2 class="text-2xl font-black mb-8 tracking-tight">계정 설정</h2>
-          <input type="text" id="regName" placeholder="이름" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold mb-4 outline-none">
+          <div class="flex gap-2 mb-2">
+            <input type="text" id="regName" placeholder="이름" class="flex-1 p-4 rounded-2xl border-2 border-slate-100 font-bold outline-none">
+            <button id="btnCheckDup" class="px-5 bg-slate-100 text-[#005CC5] rounded-2xl font-black text-xs whitespace-nowrap btn-verify active:scale-95 transition-all">중복 확인</button>
+          </div>
+          <p id="nameCheckMsg" class="text-[11px] font-bold px-2 mb-4 hidden"></p>
           <input type="password" id="regPin" maxlength="4" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold outline-none">
         </div>
         <div id="step2" class="signUpStep hidden text-left">

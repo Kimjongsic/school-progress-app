@@ -7,7 +7,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 let state = {
   user: null,
   activeDate: new Date(),
-  signUp: { step: 1, subs: [], gcs: [] },
+  signUp: { step: 1, subs: [], gcs: [], isNameVerified: false, verifiedName: "" },
   activeCell: null, 
   maxPeriods: 7, 
   isTagEditMode: false,
@@ -95,13 +95,24 @@ async function initApp() {
 function initEvents() {
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
-    state.signUp = { step: 1, subs: [], gcs: [] };
+    state.signUp = { step: 1, subs: [], gcs: [], isNameVerified: false, verifiedName: "" };
     updateSignUpUI(); showView('signUpContainer');
   });
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
+  // 중복 확인 버튼 이벤트
+  document.getElementById('btnCheckDup')?.addEventListener('click', checkNameDuplicate);
+  
+  // 이름 입력 시 검증 상태 초기화 로직
+  document.getElementById('regName')?.addEventListener('input', (e) => {
+    if (state.signUp.isNameVerified && e.target.value !== state.signUp.verifiedName) {
+        state.signUp.isNameVerified = false;
+        updateVerificationUI(null);
+    }
+  });
+
   document.getElementById('btnSettings')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(true); });
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
   document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
@@ -135,32 +146,71 @@ function initEvents() {
   document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
 }
 
-// --- 코어 비즈니스 로직 ---
+// --- 중복 확인 코어 로직 ---
+async function checkNameDuplicate() {
+    const name = document.getElementById('regName')?.value.trim();
+    if (!name) return showAlert('이름을 입력해주세요.');
 
-// 가입 단계 이동 및 Step 1 중복 체크
+    const btn = document.getElementById('btnCheckDup');
+    btn.disabled = true;
+    btn.innerText = "확인 중...";
+
+    try {
+        const { data, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+        if (error) throw error;
+
+        if (data) {
+            state.signUp.isNameVerified = false;
+            updateVerificationUI(false);
+            showAlert('이미 사용 중인 이름입니다.');
+        } else {
+            state.signUp.isNameVerified = true;
+            state.signUp.verifiedName = name;
+            updateVerificationUI(true);
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('중복 확인 중 오류가 발생했습니다.');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "중복 확인";
+    }
+}
+
+function updateVerificationUI(isAvailable) {
+    const msg = document.getElementById('nameCheckMsg');
+    const btn = document.getElementById('btnCheckDup');
+    if (isAvailable === true) {
+        msg.innerText = "✓ 사용 가능한 이름입니다.";
+        msg.className = "text-[11px] font-black px-2 mb-4 text-emerald-500 block";
+        btn.classList.add('btn-verified');
+        btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>확인됨';
+    } else if (isAvailable === false) {
+        msg.innerText = "✕ 이미 가입된 이름입니다.";
+        msg.className = "text-[11px] font-black px-2 mb-4 text-rose-500 block";
+        btn.classList.remove('btn-verified');
+    } else {
+        msg.classList.add('hidden');
+        btn.classList.remove('btn-verified');
+        btn.innerText = "중복 확인";
+    }
+}
+
+// 가입 단계 이동 시 검증 로직
 async function handleNextButton() {
   const step = state.signUp.step;
+  
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
+    
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
-
-    // Step 1에서 즉시 중복 체크 (await 사용)
-    showView('loadingView');
-    try {
-        const { data: existingUser, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
-        if (error) throw error;
-        if (existingUser) {
-            showView('signUpContainer'); // 로딩 끄고 복구
-            showAlert('이미 가입된 이름입니다.');
-            return; // 중복이면 함수 종료 (다음 단계 안 넘어감)
-        }
-    } catch (e) {
-        showView('signUpContainer');
-        return showAlert('서버 확인 중 오류가 발생했습니다.');
+    
+    // 중복 확인 통과 여부 체크
+    if (!state.signUp.isNameVerified || name !== state.signUp.verifiedName) {
+        return showAlert('이름 중복 확인을 먼저 완료해주세요.');
     }
-    // 중복 없으면 다음 단계로
-    showView('signUpContainer');
+
     state.signUp.step = 2; 
     updateSignUpUI();
     return;
@@ -197,7 +247,7 @@ async function handleFinalSignUpSubmit() {
     options: { data: { full_name: name } } 
   });
 
-  if (error) { showAlert('가입 처리 중 오류 발생: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  if (error) { showAlert('가입 처리 중 오류: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
   
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
@@ -218,7 +268,7 @@ async function handleUpdateTimetable() {
   } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
-// --- 렌더링 및 태그 관리 로직 (전체 복구) ---
+// --- 렌더링 및 태그 관리 로직 ---
 function gatherTimetableData(userId, userName, suffix) {
     const data = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -394,12 +444,6 @@ function toggleSettings(open) {
   if(open) { s?.classList.add('sheet-open'); o?.classList.add('overlay-show'); }
   else { s?.classList.remove('sheet-open'); o?.classList.remove('overlay-show'); }
 }
-function toggleSheet(open) {
-  const s = document.getElementById('inputSheet');
-  const o = document.getElementById('sheetOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
-}
 function updateDateUI() {
   const d = document.getElementById('currentDateDisplay');
   if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
@@ -411,6 +455,7 @@ function updateSignUpUI() {
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
   document.getElementById('signUpProgress').style.width = `${(state.signUp.step / 4) * 100}%`;
   document.getElementById('btnNextStep').innerText = state.signUp.step === 4 ? "가입 완료" : "다음 단계";
+  
   if (state.signUp.step === 2) window.renderTags('sub', 'Signup');
   else if (state.signUp.step === 3) window.renderTags('gc', 'Signup');
   else if (state.signUp.step === 4) renderSetupGrid(false, 'Signup');
