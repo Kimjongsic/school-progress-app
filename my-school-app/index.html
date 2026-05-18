@@ -57,6 +57,17 @@
       <p id="loadingMsg" class="mt-4 font-bold text-slate-500 text-sm tracking-tight">잠시만 기다려주세요...</p>
     </div>
 
+    <div id="customAlert" class="fixed inset-0 z-[1000] hidden flex items-center justify-center px-8 text-center">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-md"></div>
+        <div class="relative bg-white rounded-[40px] p-10 w-full max-w-xs shadow-2xl">
+          <div class="w-16 h-16 bg-blue-50 text-[#005CC5] rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+            <i class="fa-solid fa-circle-info"></i>
+          </div>
+          <p id="alertMessage" class="text-slate-700 font-bold text-[15px] leading-relaxed mb-10 whitespace-pre-wrap"></p>
+          <button onclick="window.closeAlert()" class="w-full bg-[#005CC5] text-white py-4 rounded-[20px] font-bold text-base active:scale-95 transition-all shadow-lg">확인</button>
+        </div>
+    </div>
+
     <section id="loginView" class="view-transition hidden fixed inset-0 z-50 bg-white flex flex-col justify-center px-10 text-center">
       <div class="mb-12">
         <div class="inline-flex p-5 bg-blue-50 rounded-[32px] mb-6 shadow-sm">
@@ -95,17 +106,14 @@
           <input type="text" id="regName" placeholder="이름" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold mb-4 outline-none">
           <input type="password" id="regPin" maxlength="4" placeholder="비밀번호 4자리" class="w-full p-4 rounded-2xl border-2 border-slate-100 font-bold outline-none">
         </div>
-        
         <div id="step2" class="signUpStep hidden text-left">
           <div class="mb-6"><h2 class="text-2xl font-black tracking-tight">과목 등록</h2></div>
-          <div id="subTagContainer" class="flex flex-wrap gap-2"></div>
+          <div id="subTagContainerSignup" class="flex flex-wrap gap-2"></div>
         </div>
-        
         <div id="step3" class="signUpStep hidden text-left">
           <div class="mb-6"><h2 class="text-2xl font-black tracking-tight">학급 등록</h2></div>
-          <div id="gcTagContainer" class="flex flex-wrap gap-2"></div>
+          <div id="gcTagContainerSignup" class="flex flex-wrap gap-2"></div>
         </div>
-        
         <div id="step4" class="signUpStep hidden text-left">
           <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4 shadow-sm">
             <div class="flex justify-between items-center px-1">
@@ -135,7 +143,6 @@
         </div>
         <button id="btnEditViewClose" class="header-action-btn ml-4"><i class="fa-solid fa-xmark text-xl"></i></button>
       </header>
-
       <div class="flex-1 px-8 py-2 overflow-y-auto no-scrollbar">
         <div class="bg-white border-2 border-slate-100 p-5 rounded-xl mb-6 space-y-4 shadow-sm">
           <div class="flex justify-between items-center px-1">
@@ -168,7 +175,6 @@
         </div>
         <button id="btnSettings" class="header-action-btn"><i class="fa-solid fa-gear text-xl"></i></button>
       </header>
-      
       <div class="px-8 mb-6">
         <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl">
             <button id="btnPrevDate" class="w-12 h-12 flex items-center justify-center text-slate-400"><i class="fa-solid fa-chevron-left text-xl"></i></button>
@@ -196,10 +202,6 @@
           <button id="btnMenuEditTime" class="w-full p-5 rounded-2xl bg-slate-50 flex items-center gap-4 text-left">
             <div class="w-10 h-10 bg-blue-50 text-[#005CC5] rounded-xl flex items-center justify-center"><i class="fa-solid fa-calendar-days"></i></div>
             <span class="font-bold text-slate-700">전체 시간표 수정</span>
-          </button>
-          <button id="btnMenuInquiry" class="w-full p-5 rounded-2xl bg-slate-50 flex items-center gap-4 text-left">
-            <div class="w-10 h-10 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center"><i class="fa-solid fa-comment-dots"></i></div>
-            <span class="font-bold text-slate-700">문의하기</span>
           </button>
           <button id="btnMenuLogout" class="w-full p-5 rounded-2xl bg-slate-50 flex items-center gap-4 text-rose-500 text-left">
             <div class="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
@@ -230,12 +232,10 @@
         <div class="space-y-6">
           <div><label class="text-[10px] font-black text-amber-500 mb-2 block uppercase tracking-wider">LAST</label><div class="p-5 bg-slate-100 border-none rounded-[24px] min-h-[58px]"><p id="prevProgressText" class="text-slate-700 font-bold text-sm leading-relaxed">-</p></div></div>
           <div><label class="text-[10px] font-black text-[#005CC5] mb-2 block uppercase tracking-wider">TODAY</label><input type="text" id="progContent" placeholder="진도를 입력하세요" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-bold outline-none"></div>
-          <div><label class="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-wider">MEMO</label><textarea id="progNote" placeholder="메모할 내용" rows="2" class="w-full p-5 rounded-[24px] bg-slate-100 border-none font-medium outline-none"></textarea></div>
           <div class="flex justify-center pt-2"><button id="btnSaveProgress" class="w-3/4 bg-[#005CC5] text-white py-3.5 rounded-[20px] font-bold text-base shadow-xl active:scale-95 transition-all">저장</button></div>
         </div>
       </div>
     </div>
-
   </div>
 
   <script type="module" src="/main.js"></script>

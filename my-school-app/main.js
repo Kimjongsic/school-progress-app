@@ -14,10 +14,24 @@ let state = {
   selectedItem: null
 };
 
-let deferredPrompt; // PWA 설치 프롬프트 저장용 변수
+let deferredPrompt;
 
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
+
+// --- 커스텀 알림 UI 제어 ---
+window.showAlert = (msg) => {
+    const alertBox = document.getElementById('customAlert');
+    const alertMsg = document.getElementById('alertMessage');
+    if (alertBox && alertMsg) {
+        alertMsg.innerText = msg;
+        alertBox.classList.remove('hidden');
+    }
+};
+
+window.closeAlert = () => {
+    document.getElementById('customAlert')?.classList.add('hidden');
+};
 
 function generateInternalId(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name))
@@ -29,9 +43,8 @@ function generateInternalId(name, pin) {
 window.onload = async () => {
   await checkSession();
   initEvents();
-  // 서비스 워커 등록 확인
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error('SW Registration Failed', err));
+    navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error(err));
   }
 };
 
@@ -42,30 +55,19 @@ async function checkSession() {
     initApp();
   } else {
     showView('loginView');
-    checkInstallButtonVisibility(); // 로그인 화면에서도 설치 버튼 확인
+    checkInstallButtonVisibility();
   }
 }
 
-// 앱 설치 버튼 표시 로직
 function checkInstallButtonVisibility() {
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
-    
-    // 이미 설치된 상태라면 버튼을 숨김
     if (isStandalone) {
         installBtns.forEach(btn => btn?.classList.add('hidden'));
         return;
     }
-
-    // iOS이고 웹 브라우저 상태일 때 가이드 노출용 버튼 활성화
-    if (isIOS) {
-        installBtns.forEach(btn => btn?.classList.remove('hidden'));
-    } 
-    // Android/Chrome 등 설치 가능 이벤트가 발생했을 때 버튼 활성화
-    else if (deferredPrompt) {
-        installBtns.forEach(btn => btn?.classList.remove('hidden'));
-    }
+    if (isIOS || deferredPrompt) installBtns.forEach(btn => btn?.classList.remove('hidden'));
 }
 
 function showView(id) {
@@ -87,7 +89,7 @@ async function initApp() {
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
   updateDateUI(); fetchTimetable();
-  checkInstallButtonVisibility(); // 앱 실행 시 설치 버튼 상태 확인
+  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -101,7 +103,7 @@ function initEvents() {
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
   document.getElementById('btnEditViewClose')?.addEventListener('click', () => {
-    if(confirm('수정 중인 내용이 저장되지 않았습니다. 닫으시겠습니까?')) initApp();
+    if(confirm('수정 중인 내용이 저장되지 않았습니다.')) initApp();
   });
   document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
   document.getElementById('btnAddPeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true, 'Edit'); }});
@@ -112,31 +114,22 @@ function initEvents() {
   document.getElementById('btnSettings')?.addEventListener('click', () => toggleSettings(true));
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
-  document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
 
-  // 설치 버튼 클릭 핸들러
-  const handleInstallClick = async () => {
+  const handleInstall = async () => {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-          [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
-      }
+      if (outcome === 'accepted') [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
       deferredPrompt = null;
     } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
       document.getElementById('iosInstallGuide')?.classList.remove('hidden');
     }
   };
-  document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstallClick);
-  document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstallClick);
+  document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstall);
+  document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstall);
 
-  // 브라우저 설치 프롬프트 이벤트 리스너
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    checkInstallButtonVisibility();
-  });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; checkInstallButtonVisibility(); });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
@@ -145,16 +138,15 @@ function initEvents() {
   document.getElementById('datePicker')?.addEventListener('change', (e) => { state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable(); });
 }
 
-// [이하 기존 함수 로직 유지 - 이전 답변과 동일]
 async function handleLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin = document.getElementById('loginPin').value.trim();
-  if(!name || !pin) return alert('정보를 입력하세요.');
+  if(!name || !pin) return showAlert('정보를 입력하세요.');
   const internalId = generateInternalId(name, pin);
   const password = `${pin}0000`;
   showView('loadingView');
   const { data, error } = await supabase.auth.signInWithPassword({ email: internalId, password: password });
-  if (error) { alert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
+  if (error) { showAlert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
   else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
@@ -163,44 +155,40 @@ async function handleNextButton() {
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
-    if (!name || pin.length < 4) return alert('정보를 올바르게 입력하세요.');
-    state.signUp.step++; updateSignUpUI();
+    if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
+    showView('loadingView');
+    const { data } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
+    if (data) { showView('signUpContainer'); return showAlert('이미 가입된 이름입니다.'); }
+    showView('signUpContainer'); state.signUp.step++; updateSignUpUI();
   } else if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
   else handleFinalSignUpSubmit();
 }
 
 async function handleFinalSignUpSubmit() {
   const btn = document.getElementById('btnNextStep');
-  if (btn.disabled) return;
   const name = document.getElementById('regName').value.trim();
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
-  const password = `${pin}0000`;
-  btn.disabled = true; btn.innerText = "처리 중...";
-  showView('loadingView');
-  const { data, error: authError } = await supabase.auth.signUp({ email: internalId, password: password, options: { data: { full_name: name } } });
-  if (authError) { alert('가입 실패: ' + authError.message); btn.disabled = false; btn.innerText = "가입 완료"; showView('signUpContainer'); return; }
-  const userId = data.user.id;
+  btn.disabled = true; showView('loadingView');
+  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
+  if (error) { showAlert('가입 실패: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
   try {
-    await supabase.from('profiles').insert({ user_id: userId, name: name, pin_code: pin });
-    const timetableData = gatherTimetableData(userId, name, 'Signup');
+    await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
+    const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
-    alert('환영합니다! 가입이 완료되었습니다.'); location.reload();
-  } catch (err) { alert('DB 저장 실패'); btn.disabled = false; }
+    showAlert('가입이 완료되었습니다!'); location.reload();
+  } catch (err) { showAlert('저장 실패'); btn.disabled = false; }
 }
 
 async function handleUpdateTimetable() {
   const btn = document.getElementById('btnSaveEditedTimetable');
-  if (btn.disabled) return;
-  btn.disabled = true; btn.innerText = "저장 중...";
-  showView('loadingView');
+  btn.disabled = true; showView('loadingView');
   try {
     await supabase.from('basic_timetable').delete().eq('user_id', state.user.id);
     const timetableData = gatherTimetableData(state.user.id, state.user.name, 'Edit');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
-    alert('시간표가 정상적으로 수정되었습니다.');
-    initApp();
-  } catch (err) { alert('수정 실패: ' + err.message); } finally { btn.disabled = false; btn.innerText = "수정 완료"; }
+    showAlert('시간표가 수정되었습니다.'); initApp();
+  } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
 function gatherTimetableData(userId, userName, suffix) {
@@ -220,7 +208,7 @@ function gatherTimetableData(userId, userName, suffix) {
 }
 
 window.renderTags = (type, suffix) => {
-    let targetId = (type === 'sub' ? 'subTagContainer' : 'gcTagContainer');
+    let targetId = (type === 'sub' ? 'subTagContainerSignup' : 'gcTagContainerSignup');
     if(state.signUp.step === 4) targetId = (type === 'sub' ? 'quickSubSectionSignup' : 'quickGcSectionSignup');
     if(suffix === 'Edit') targetId = (type === 'sub' ? 'quickSubSectionEdit' : 'quickGcSectionEdit');
     const container = document.getElementById(targetId);
@@ -314,8 +302,7 @@ window.fillCell = (type, val, color, suffix) => {
 };
 
 async function openEditTimetable() {
-    toggleSettings(false);
-    showView('loadingView');
+    toggleSettings(false); showView('loadingView');
     const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_id', state.user.id);
     state.signUp.subs = [...new Set(current?.map(i => i.subject) || [])];
     state.signUp.gcs = [...new Set(current?.map(i => i.grade_class) || [])].sort();
@@ -337,36 +324,26 @@ async function fetchTimetable() {
   const list = document.getElementById('timetableList');
   if (!list) return;
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
-  const [basic, records, changes] = await Promise.all([
+  const [basic, records] = await Promise.all([
     supabase.from('basic_timetable').select('*').eq('day', dayName).eq('user_id', state.user.id),
-    supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id),
-    supabase.from('lesson_changes').select('*').eq('date', dateStr).eq('user_id', state.user.id)
+    supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id)
   ]);
-  let finalSchedule = [];
-  if (basic.data) {
-    const cancelledPeriods = changes.data?.filter(c => c.change_type === 'cancelled').map(c => c.period) || [];
-    finalSchedule = basic.data.filter(b => !cancelledPeriods.includes(b.period));
-  }
-  if (changes.data) {
-    const addedLessons = changes.data.filter(c => c.change_type === 'added');
-    finalSchedule = [...finalSchedule, ...addedLessons].sort((a, b) => a.period - b.period);
-  }
-  if (finalSchedule.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; return; }
-  const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
+  if (basic.data.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; return; }
+  const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
     const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
     const today = records.data?.find(r => r.period == item.period);
     const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
     const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
     return `
-      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left">
+      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
         <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+          <div class="flex items-center gap-3">
             <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
             <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
           </div>
         </div>
-        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
           <div class="flex items-center gap-3">
             <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
             <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
@@ -425,18 +402,15 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   document.getElementById('prevProgressText').innerText = prevContent;
   document.getElementById('progContent').value = todayRec ? todayRec.content : '';
-  document.getElementById('progNote').value = todayRec ? todayRec.note : '';
   toggleSheet(true);
 };
 
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
-  const note = document.getElementById('progNote')?.value.trim();
-  const dateStr = state.activeDate.toISOString().split('T')[0];
-  if (!content) return alert('내용을 입력하세요.');
+  if (!content) return showAlert('내용을 입력하세요.');
   showView('loadingView');
   try {
-    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: dateStr, period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: note || '-' }, { onConflict: 'user_id, date, period, grade_class, subject' });
+    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: state.activeDate.toISOString().split('T')[0], period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: '-' });
     toggleSheet(false); fetchTimetable();
-  } catch (err) { alert('저장 실패'); } finally { showView('mainView'); }
+  } catch (err) { showAlert('저장 실패'); } finally { showView('mainView'); }
 }
