@@ -19,7 +19,7 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- 커스텀 알림 UI 제어 ---
+// --- UI 헬퍼 함수 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -33,6 +33,12 @@ window.closeAlert = () => {
     document.getElementById('customAlert')?.classList.add('hidden');
 };
 
+function showView(id) {
+  document.querySelectorAll('section, main, #loadingView').forEach(v => v.classList.add('hidden'));
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
+}
+
 function generateInternalId(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name))
     .map(b => b.toString(16).padStart(2, '0'))
@@ -40,12 +46,10 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
+// --- 앱 초기화 및 이벤트 ---
 window.onload = () => {
-  // 1. 이벤트 먼저 등록 (세션 체크 중에도 버튼이 작동하게 함)
   initEvents();
-  // 2. 세션 체크
   checkSession();
-  
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error(err));
   }
@@ -65,19 +69,11 @@ async function checkSession() {
 function checkInstallButtonVisibility() {
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
-    
-    // 이미 설치된 상태면 숨김, 설치 전이면 노출
     if (isStandalone) {
         installBtns.forEach(btn => btn?.classList.add('hidden'));
     } else {
         installBtns.forEach(btn => btn?.classList.remove('hidden'));
     }
-}
-
-function showView(id) {
-  document.querySelectorAll('section, main, #loadingView').forEach(v => v.classList.add('hidden'));
-  const target = document.getElementById(id);
-  if (target) target.classList.remove('hidden');
 }
 
 async function initApp() {
@@ -92,13 +88,10 @@ async function initApp() {
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); 
-  fetchTimetable();
-  checkInstallButtonVisibility();
+  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
 }
 
 function initEvents() {
-  // 로그인/회원가입
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
     state.signUp = { step: 1, subs: [], gcs: [] };
@@ -108,118 +101,66 @@ function initEvents() {
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
-  // 설정 시트 열기/닫기
-  document.getElementById('btnSettings')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleSettings(true);
-  });
+  document.getElementById('btnSettings')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(true); });
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
   document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
 
-  // 메뉴 버튼들
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
-  document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { 
-    await supabase.auth.signOut(); 
-    location.reload(); 
-  });
+  document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
+  document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
 
-  // 설치 관련
   const handleInstallClick = async () => {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-          [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
-      }
       deferredPrompt = null;
-    } else {
-      // 설치 프롬프트가 없으면 가이드 팝업 노출 (iOS 대응)
-      document.getElementById('iosInstallGuide')?.classList.remove('hidden');
-    }
+    } else { document.getElementById('iosInstallGuide')?.classList.remove('hidden'); }
   };
   document.getElementById('btnInstallPWA')?.addEventListener('click', handleInstallClick);
   document.getElementById('btnLoginInstall')?.addEventListener('click', handleInstallClick);
 
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    checkInstallButtonVisibility();
-  });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; checkInstallButtonVisibility(); });
 
-  // 시간표/진도 조작
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   document.getElementById('dateTextGroup')?.addEventListener('click', () => document.getElementById('datePicker')?.showPicker());
-  document.getElementById('datePicker')?.addEventListener('change', (e) => { 
-    state.activeDate = new Date(e.target.value); 
-    updateDateUI(); 
-    fetchTimetable(); 
-  });
+  document.getElementById('datePicker')?.addEventListener('change', (e) => { state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable(); });
+
+  document.getElementById('btnEditViewClose')?.addEventListener('click', () => { if(confirm('수정 내용을 취소할까요?')) initApp(); });
+  document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
+  document.getElementById('btnAddPeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid(true, 'Edit'); }});
+  document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
 }
 
-function toggleSettings(open) {
-  const s = document.getElementById('settingsSheet');
-  const o = document.getElementById('settingsOverlay');
-  if(open) {
-    s?.classList.add('sheet-open');
-    o?.classList.add('overlay-show');
-  } else {
-    s?.classList.remove('sheet-open');
-    o?.classList.remove('overlay-show');
-  }
-}
-
-function toggleSheet(open) {
-  const s = document.getElementById('inputSheet');
-  const o = document.getElementById('sheetOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
-}
-
+// --- 코어 비즈니스 로직 ---
 async function handleNextButton() {
   const step = state.signUp.step;
-  
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    showView('loadingView'); 
+    // 계정 설정 단계(Step 1)에서 이름 중복 체크
+    showView('loadingView');
     try {
-        const { data: existingUser, error } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('name', name)
-            .maybeSingle();
-
+        const { data: existingUser, error } = await supabase.from('profiles').select('name').eq('name', name).maybeSingle();
         if (error) throw error;
-
         if (existingUser) {
             showView('signUpContainer');
             showAlert('이미 가입된 이름입니다.');
-            return; // 중복일 경우 확실하게 중단
+            return; // 중복 발견 시 중단
         }
     } catch (e) {
-        console.error("중복 체크 오류:", e);
         showView('signUpContainer');
         return showAlert('통신 오류가 발생했습니다.');
     }
-    
-    // 중복이 없을 때만 다음 단계로 이동
-    showView('signUpContainer');
-    state.signUp.step = 2; 
-    updateSignUpUI();
-    return;
+    showView('signUpContainer'); state.signUp.step = 2; updateSignUpUI(); return;
   } 
 
-  if (step < 4) { 
-    state.signUp.step++; 
-    updateSignUpUI(); 
-  } else {
-    handleFinalSignUpSubmit();
-  }
+  if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
+  else { handleFinalSignUpSubmit(); }
 }
 
 async function handleLogin() {
@@ -239,20 +180,14 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
   btn.disabled = true; showView('loadingView');
-  const { data, error } = await supabase.auth.signUp({ 
-    email: internalId, 
-    password: `${pin}0000`, 
-    options: { data: { full_name: name } } 
-  });
-
+  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
   if (error) { showAlert('가입 실패: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
-  
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
     showAlert('가입이 완료되었습니다!'); location.reload();
-  } catch (err) { showAlert('데이터 저장 중 오류가 발생했습니다.'); btn.disabled = false; }
+  } catch (err) { showAlert('데이터 저장 실패'); btn.disabled = false; }
 }
 
 async function handleUpdateTimetable() {
@@ -266,6 +201,7 @@ async function handleUpdateTimetable() {
   } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
+// --- 데이터 및 렌더링 로직 ---
 function gatherTimetableData(userId, userName, suffix) {
     const data = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -318,14 +254,12 @@ window.submitInlineInput = (type, suffix) => {
         const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs;
         if(!arr.includes(val)) { arr.push(val); if (type === 'gc') arr.sort(); }
     }
-    window.renderTags(type, suffix);
-    renderSetupGrid(true, suffix);
+    window.renderTags(type, suffix); renderSetupGrid(true, suffix);
 };
 
 window.removeTag = (type, i, suffix) => {
     (type === 'sub' ? state.signUp.subs : state.signUp.gcs).splice(i, 1);
-    window.renderTags(type, suffix);
-    renderSetupGrid(true, suffix);
+    window.renderTags(type, suffix); renderSetupGrid(true, suffix);
 };
 
 function renderSetupGrid(keepValues = false, suffix = 'Signup') {
@@ -356,11 +290,11 @@ function renderSetupGrid(keepValues = false, suffix = 'Signup') {
     }
   });
   window.renderTags('sub', suffix); window.renderTags('gc', suffix);
-  document.querySelectorAll(`#setupTableBody${suffix} .setup-in`).forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll(`#setupTableBody${suffix} .setup-in`).forEach(btn => btn.onclick = () => {
     document.querySelectorAll('.setup-in').forEach(b => b.classList.remove('active-cell'));
     btn.classList.add('active-cell');
     state.activeCell = { type: btn.classList.contains('sub-cell') ? 'sub' : 'gc', day: btn.dataset.day, p: btn.dataset.p };
-  }));
+  });
 }
 
 window.fillCell = (type, val, color, suffix) => {
@@ -435,6 +369,25 @@ async function fetchTimetable() {
   list.innerHTML = dashboardHTML.join('');
 }
 
+// --- UI 상태 제어 ---
+function toggleSettings(open) {
+  const s = document.getElementById('settingsSheet');
+  const o = document.getElementById('settingsOverlay');
+  if(open) { s?.classList.add('sheet-open'); o?.classList.add('overlay-show'); }
+  else { s?.classList.remove('sheet-open'); o?.classList.remove('overlay-show'); }
+}
+function toggleSheet(open) {
+  const s = document.getElementById('inputSheet');
+  const o = document.getElementById('sheetOverlay');
+  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
+}
+function updateDateUI() {
+  const d = document.getElementById('currentDateDisplay');
+  if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+}
+function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
+
 function updateSignUpUI() {
   document.querySelectorAll('.signUpStep').forEach(s => s.classList.add('hidden'));
   document.getElementById(`step${state.signUp.step}`)?.classList.remove('hidden');
@@ -445,26 +398,12 @@ function updateSignUpUI() {
   else if (state.signUp.step === 4) renderSetupGrid(false, 'Signup');
 }
 
-function updateDateUI() {
-  const d = document.getElementById('currentDateDisplay');
-  if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
-}
-
-function moveDate(offset) { 
-    state.activeDate.setDate(state.activeDate.getDate() + offset); 
-    updateDateUI(); 
-    fetchTimetable(); 
-}
-
-window.openInputSheet = (item, prevContent, todayRec) => {
-  state.selectedItem = item;
-  const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
-  const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
-  const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
-  document.getElementById('sheetTagContainer').innerHTML = tagHtml;
-  document.getElementById('prevProgressText').innerText = prevContent;
-  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
-  toggleSheet(true);
+window.toggleTagEditMode = (isEditView) => {
+    state.isTagEditMode = !state.isTagEditMode;
+    const suffix = isEditView ? 'Edit' : 'Signup';
+    const btn = document.getElementById(isEditView ? 'btnEditTagsEditView' : 'btnEditTagsSignup');
+    if(btn) btn.innerText = state.isTagEditMode ? "완료" : "편집";
+    renderSetupGrid(true, suffix);
 };
 
 async function saveProgress() {
