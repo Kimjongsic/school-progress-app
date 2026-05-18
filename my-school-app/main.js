@@ -19,7 +19,7 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- UI 헬퍼 함수 ---
+// --- UI 헬퍼 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -46,7 +46,7 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
-// --- 앱 초기화 ---
+// --- 초기화 ---
 window.onload = () => {
   initEvents();
   checkSession();
@@ -82,16 +82,18 @@ async function initApp() {
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
 
+  // 색상 팔레트 구성을 위해 기존 시간표 정보 로드
   const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_id', state.user.id);
   if (current && current.length > 0) {
     state.signUp.subs = [...new Set(current.map(i => i.subject))];
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
+  updateDateUI(); 
+  fetchTimetable(); 
+  checkInstallButtonVisibility();
 }
 
-// --- 이벤트 바인딩 ---
 function initEvents() {
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
@@ -101,7 +103,7 @@ function initEvents() {
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
-
+  
   document.getElementById('btnSettings')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(true); });
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
   document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
@@ -114,7 +116,6 @@ function initEvents() {
     toggleSettings(false);
     if (deferredPrompt) {
       deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
       deferredPrompt = null;
     } else { document.getElementById('iosInstallGuide')?.classList.remove('hidden'); }
   };
@@ -135,7 +136,7 @@ function initEvents() {
   document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
 }
 
-// --- 핵심: 다음 단계 버튼 클릭 시 중복 체크 ---
+// --- 비즈니스 로직 ---
 async function handleNextButton() {
   const step = state.signUp.step;
   if (step === 1) {
@@ -143,40 +144,23 @@ async function handleNextButton() {
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    // [핵심 로직] 버튼 클릭 시 즉시 중복 체크 수행
     showView('loadingView');
     try {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('name', name);
-
+        const { data, error } = await supabase.from('profiles').select('name').eq('name', name);
         if (error) throw error;
-
-        // 중복 발견 시
         if (data && data.length > 0) {
-            showView('signUpContainer'); // 로딩 화면 끄고 가입 화면으로
-            return showAlert('이미 가입된 이름입니다.'); // 여기서 리턴하여 단계 이동 차단
+            showView('signUpContainer');
+            return showAlert('이미 가입된 이름입니다.');
         }
     } catch (e) {
-        console.error("중복 체크 에러:", e);
         showView('signUpContainer');
         return showAlert('서버 확인 중 오류가 발생했습니다.');
     }
-    
-    // 중복이 없을 때만 아래 코드가 실행됨
-    showView('signUpContainer');
-    state.signUp.step = 2; 
-    updateSignUpUI();
-    return;
+    showView('signUpContainer'); state.signUp.step = 2; updateSignUpUI(); return;
   } 
 
-  if (step < 4) { 
-    state.signUp.step++; 
-    updateSignUpUI(); 
-  } else {
-    handleFinalSignUpSubmit();
-  }
+  if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
+  else { handleFinalSignUpSubmit(); }
 }
 
 async function handleLogin() {
@@ -223,7 +207,7 @@ async function handleUpdateTimetable() {
   } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
-// --- 렌더링 및 태그 관리 로직 ---
+// --- 렌더링 로직 ---
 function gatherTimetableData(userId, userName, suffix) {
     const data = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -351,64 +335,70 @@ async function openEditTimetable() {
     });
 }
 
-// --- 대시보드 로직 ---
+// --- 대시보드 데이터 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
   const list = document.getElementById('timetableList');
   if (!list) return;
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
-  const [basic, records] = await Promise.all([
-    supabase.from('basic_timetable').select('*').eq('day', dayName).eq('user_id', state.user.id),
-    supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id)
-  ]);
-  if (basic.data.length === 0) { list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; return; }
-  const dashboardHTML = await Promise.all(basic.data.map(async (item) => {
-    const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
-    const today = records.data?.find(r => r.period == item.period);
-    const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
-    const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
-    return `
-      <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
-        <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3">
-            <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
-            <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+  
+  try {
+    const [basic, records] = await Promise.all([
+      supabase.from('basic_timetable').select('*').eq('day', dayName).eq('user_id', state.user.id),
+      supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id)
+    ]);
+    
+    if (!basic.data || basic.data.length === 0) { 
+      list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; 
+      return; 
+    }
+
+    const dashboardHTML = await Promise.all(basic.data.sort((a,b)=>a.period - b.period).map(async (item) => {
+      const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
+      const today = records.data?.find(r => r.period == item.period);
+      const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
+      const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
+      return `
+        <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
+              <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
+            </div>
           </div>
-        </div>
-        <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
-          <div class="flex items-center gap-3">
-            <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
-            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
+          <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+            <div class="flex items-center gap-3">
+              <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
+              <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase leading-none">Today</span>
+              <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic text-[11px]">입력 전입니다</span>'}</p>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-[9px] font-black text-[#005CC5] w-10 shrink-0 tracking-widest uppercase leading-none">Today</span>
-            <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${today ? today.content : '<span class="text-slate-200 font-medium italic text-[11px]">입력 전입니다</span>'}</p>
-          </div>
-        </div>
-      </div>`;
-  }));
-  list.innerHTML = dashboardHTML.join('');
+        </div>`;
+    }));
+    list.innerHTML = dashboardHTML.join('');
+  } catch (err) {
+    list.innerHTML = `<div class="py-20 text-center text-rose-400 font-bold text-sm">데이터를 불러오지 못했습니다.</div>`;
+  }
 }
 
-// --- UI 상태 관리 ---
+// --- UI 상태 ---
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');
   if(open) { s?.classList.add('sheet-open'); o?.classList.add('overlay-show'); }
   else { s?.classList.remove('sheet-open'); o?.classList.remove('overlay-show'); }
 }
-function toggleSheet(open) {
-  const s = document.getElementById('inputSheet');
-  const o = document.getElementById('sheetOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
-}
+
 function updateDateUI() {
   const d = document.getElementById('currentDateDisplay');
-  if (d) d.innerText = state.activeDate.toLocaleDateString('long', { month: 'long', day: 'numeric', weekday: 'long' });
+  if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 }
+
 function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
 
 function updateSignUpUI() {
@@ -436,9 +426,20 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   document.getElementById('prevProgressText').innerText = prevContent;
-  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
-  toggleSheet(true);
+  const contentInput = document.getElementById('progContent');
+  if (contentInput) contentInput.value = todayRec ? todayRec.content : '';
+  const o = document.getElementById('sheetOverlay');
+  const s = document.getElementById('inputSheet');
+  if(s) s.style.transform = 'translateY(0)';
+  if(o) o.classList.add('overlay-show');
 };
+
+function toggleSheet(open) {
+  const s = document.getElementById('inputSheet');
+  const o = document.getElementById('sheetOverlay');
+  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
+}
 
 async function saveProgress() {
   const content = document.getElementById('progContent')?.value.trim();
