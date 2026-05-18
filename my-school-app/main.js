@@ -40,9 +40,12 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
-window.onload = async () => {
-  await checkSession();
+window.onload = () => {
+  // 1. 이벤트 먼저 등록 (세션 체크 중에도 버튼이 작동하게 함)
   initEvents();
+  // 2. 세션 체크
+  checkSession();
+  
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js?v=3').catch(err => console.error(err));
   }
@@ -59,20 +62,14 @@ async function checkSession() {
   }
 }
 
-// 앱 설치 버튼 표시 여부 체크 로직 보강
 function checkInstallButtonVisibility() {
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     const installBtns = [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')];
     
-    // 이미 앱으로 접속 중이면 숨김
+    // 이미 설치된 상태면 숨김, 설치 전이면 노출
     if (isStandalone) {
         installBtns.forEach(btn => btn?.classList.add('hidden'));
-        return;
-    }
-
-    // iOS는 가이드 안내를 위해 무조건 노출, Android/PC는 deferredPrompt가 있을 때 노출
-    if (isIOS || deferredPrompt) {
+    } else {
         installBtns.forEach(btn => btn?.classList.remove('hidden'));
     }
 }
@@ -95,11 +92,13 @@ async function initApp() {
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); fetchTimetable();
+  updateDateUI(); 
+  fetchTimetable();
   checkInstallButtonVisibility();
 }
 
 function initEvents() {
+  // 로그인/회원가입
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
     state.signUp = { step: 1, subs: [], gcs: [] };
@@ -109,10 +108,22 @@ function initEvents() {
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
-  document.getElementById('btnSaveEditedTimetable')?.addEventListener('click', handleUpdateTimetable);
-  document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
-  document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
+  // 설정 시트 열기/닫기
+  document.getElementById('btnSettings')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSettings(true);
+  });
+  document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
+  document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
 
+  // 메뉴 버튼들
+  document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
+  document.getElementById('btnMenuLogout')?.addEventListener('click', async () => { 
+    await supabase.auth.signOut(); 
+    location.reload(); 
+  });
+
+  // 설치 관련
   const handleInstallClick = async () => {
     toggleSettings(false);
     if (deferredPrompt) {
@@ -122,7 +133,8 @@ function initEvents() {
           [document.getElementById('btnInstallPWA'), document.getElementById('btnLoginInstall')].forEach(b => b?.classList.add('hidden'));
       }
       deferredPrompt = null;
-    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    } else {
+      // 설치 프롬프트가 없으면 가이드 팝업 노출 (iOS 대응)
       document.getElementById('iosInstallGuide')?.classList.remove('hidden');
     }
   };
@@ -135,36 +147,45 @@ function initEvents() {
     checkInstallButtonVisibility();
   });
 
+  // 시간표/진도 조작
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   document.getElementById('dateTextGroup')?.addEventListener('click', () => document.getElementById('datePicker')?.showPicker());
-  document.getElementById('datePicker')?.addEventListener('change', (e) => { state.activeDate = new Date(e.target.value); updateDateUI(); fetchTimetable(); });
+  document.getElementById('datePicker')?.addEventListener('change', (e) => { 
+    state.activeDate = new Date(e.target.value); 
+    updateDateUI(); 
+    fetchTimetable(); 
+  });
 }
 
-async function handleLogin() {
-  const name = document.getElementById('loginName').value.trim();
-  const pin = document.getElementById('loginPin').value.trim();
-  if(!name || !pin) return showAlert('정보를 입력하세요.');
-  const internalId = generateInternalId(name, pin);
-  const password = `${pin}0000`;
-  showView('loadingView');
-  const { data, error } = await supabase.auth.signInWithPassword({ email: internalId, password: password });
-  if (error) { showAlert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
-  else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
+function toggleSettings(open) {
+  const s = document.getElementById('settingsSheet');
+  const o = document.getElementById('settingsOverlay');
+  if(open) {
+    s?.classList.add('sheet-open');
+    o?.classList.add('overlay-show');
+  } else {
+    s?.classList.remove('sheet-open');
+    o?.classList.remove('overlay-show');
+  }
 }
 
-// 중복 가입 체크 로직을 포함한 단계 이동 함수
+function toggleSheet(open) {
+  const s = document.getElementById('inputSheet');
+  const o = document.getElementById('sheetOverlay');
+  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
+  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
+}
+
 async function handleNextButton() {
   const step = state.signUp.step;
   
-  // 가입 단계 1에서 '다음' 누를 때
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    // 중복 확인 프로세스
     showView('loadingView'); 
     try {
         const { data: existingUser, error } = await supabase
@@ -175,11 +196,10 @@ async function handleNextButton() {
 
         if (error) throw error;
 
-        // 이미 가입된 사용자가 있으면 여기서 중단
         if (existingUser) {
             showView('signUpContainer');
             showAlert('이미 가입된 이름입니다.');
-            return; // **중요: 다음 코드가 실행되지 않도록 확실히 끊어줌**
+            return; // 중복일 경우 확실하게 중단
         }
     } catch (e) {
         console.error("중복 체크 오류:", e);
@@ -191,18 +211,26 @@ async function handleNextButton() {
     showView('signUpContainer');
     state.signUp.step = 2; 
     updateSignUpUI();
-    return; // step 1 로직 끝
+    return;
   } 
 
-  // 그 외 단계들 (Step 2, 3)
   if (step < 4) { 
     state.signUp.step++; 
     updateSignUpUI(); 
-  } 
-  // 마지막 단계 (Step 4)
-  else {
+  } else {
     handleFinalSignUpSubmit();
   }
+}
+
+async function handleLogin() {
+  const name = document.getElementById('loginName').value.trim();
+  const pin = document.getElementById('loginPin').value.trim();
+  if(!name || !pin) return showAlert('정보를 입력하세요.');
+  const internalId = generateInternalId(name, pin);
+  showView('loadingView');
+  const { data, error } = await supabase.auth.signInWithPassword({ email: internalId, password: `${pin}0000` });
+  if (error) { showAlert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
+  else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
 async function handleFinalSignUpSubmit() {
@@ -417,31 +445,16 @@ function updateSignUpUI() {
   else if (state.signUp.step === 4) renderSetupGrid(false, 'Signup');
 }
 
-window.toggleTagEditMode = (isEditView) => {
-    state.isTagEditMode = !state.isTagEditMode;
-    const suffix = isEditView ? 'Edit' : 'Signup';
-    const btn = document.getElementById(isEditView ? 'btnEditTagsEditView' : 'btnEditTagsSignup');
-    if(btn) btn.innerText = state.isTagEditMode ? "완료" : "편집";
-    renderSetupGrid(true, suffix);
-};
-
-function toggleSettings(open) {
-  const s = document.getElementById('settingsSheet');
-  const o = document.getElementById('settingsOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
-}
-function toggleSheet(open) {
-  const s = document.getElementById('inputSheet');
-  const o = document.getElementById('sheetOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
-}
 function updateDateUI() {
   const d = document.getElementById('currentDateDisplay');
   if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 }
-function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
+
+function moveDate(offset) { 
+    state.activeDate.setDate(state.activeDate.getDate() + offset); 
+    updateDateUI(); 
+    fetchTimetable(); 
+}
 
 window.openInputSheet = (item, prevContent, todayRec) => {
   state.selectedItem = item;

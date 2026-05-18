@@ -46,6 +46,12 @@
     .page-title { font-size: 24px; font-weight: 900; color: #0F172A; letter-spacing: -0.025em; }
     .header-action-btn { width: 40px; height: 40px; background-color: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748B; transition: all 0.2s; }
     .header-action-btn:active { transform: scale(0.9); background-color: #E2E8F0; }
+    
+    #settingsSheet { 
+        transform: translateY(100%); 
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sheet-open { transform: translateY(0) !important; }
   </style>
 </head>
 <body class="text-slate-900 select-none">
@@ -191,7 +197,7 @@
     <div id="sheetOverlay" class="overlay-target"></div>
     <div id="settingsOverlay" class="overlay-target"></div>
 
-    <div id="settingsSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y-full transition-transform duration-300 ease-out">
+    <div id="settingsSheet" class="fixed inset-x-0 bottom-0 z-[150]">
       <div class="bg-white rounded-t-[40px] shadow-2xl px-8 pt-4 pb-12 text-center">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
         <div class="space-y-3 px-2">
