@@ -13,7 +13,7 @@ let state = {
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// [Auth] 내부 식별자 생성기 유지
+// [Auth] 내부 식별자 생성기 (Internal ID 방식 유지)
 function generateInternalId(name, pin) {
   const hexName = Array.from(new TextEncoder().encode(name)).map(b => b.toString(16).padStart(2, '0')).join('');
   return `id_${hexName}_${pin}@internal.school`;
@@ -54,13 +54,13 @@ function initEvents() {
   document.getElementById('btnSignUpClose').onclick = () => showView('loginView');
   document.getElementById('btnNextStep').onclick = handleNextButton;
 
-  // 수정 페이지 전용 이벤트
+  // [Edit] 수정 페이지 전용 이벤트
   document.getElementById('btnMenuEditTime').onclick = openEditTimetable;
   document.getElementById('btnAddPeriodEdit').onclick = () => { if(state.maxPeriods < 15) { state.maxPeriods++; renderSetupGrid('edit', true); }};
   document.getElementById('btnRemovePeriodEdit').onclick = () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid('edit', true); }};
   document.getElementById('btnSaveEditedTimetable').onclick = saveEditedTimetable;
 
-  // 공통
+  // 공통 이벤트
   document.getElementById('btnMenuLogout').onclick = async () => { await supabase.auth.signOut(); location.reload(); };
   document.getElementById('btnSettings').onclick = () => toggleSettings(true);
   document.getElementById('btnSaveProgress').onclick = saveProgress;
@@ -72,19 +72,19 @@ function initEvents() {
   document.querySelectorAll('.overlay-target').forEach(o => o.onclick = () => { toggleSheet(false); toggleMoveSheet(false); toggleSettings(false); });
 }
 
-// [Auth] 로그인
+// [Auth] 로그인 - 기존 방식 유지
 async function handleLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin = document.getElementById('loginPin').value.trim();
-  if(!name || !pin) return alert('정보를 입력하세요.');
+  if(!name || !pin) return alert('성함과 PIN을 입력하세요.');
   const email = generateInternalId(name, pin);
   showView('loadingView');
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: `${pin}0000` });
-  if (error) { alert('로그인 실패: 정보를 확인하세요.'); showView('loginView'); }
+  if (error) { alert('로그인 실패: 정보를 다시 확인해 주세요.'); showView('loginView'); }
   else { state.user = { id: data.user.id, name: data.user.user_metadata.full_name }; initApp(); }
 }
 
-// [Auth] 회원가입 제출
+// [Auth] 회원가입 제출 - 기존 방식 유지
 async function handleFinalSignUpSubmit() {
   const btn = document.getElementById('btnNextStep');
   if (btn.disabled) return;
@@ -100,16 +100,21 @@ async function handleFinalSignUpSubmit() {
     await supabase.from('profiles').insert({ user_id: userId, name: name, pin_code: pin });
     const timetableData = getGridData(userId, name, 'setupTableBody');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
-    alert('가입 완료!'); location.reload();
-  } catch (err) { alert('저장 실패'); btn.disabled = false; }
+    alert('가입을 환영합니다!'); location.reload();
+  } catch (err) { alert('데이터 저장 실패'); btn.disabled = false; }
 }
 
-// [Edit] 수정 페이지 열기
+// [Edit] 시간표 수정 페이지 열기
 async function openEditTimetable() {
-  toggleSettings(false); showView('loadingView');
+  toggleSettings(false);
+  showView('loadingView');
   const { data: current } = await supabase.from('basic_timetable').select('*');
   document.getElementById('editViewTeacherName').innerText = state.user.name;
+  
+  // 태그 및 그리드 렌더링
   renderSetupGrid('edit', true);
+  
+  // 기존 데이터 셀에 채우기
   current?.forEach(item => {
     const subCell = document.querySelector(`#editTableBody .sub-cell[data-day="${item.day}"][data-p="${item.period}"]`);
     const gcCell = document.querySelector(`#editTableBody .gc-cell[data-day="${item.day}"][data-p="${item.period}"]`);
@@ -119,18 +124,23 @@ async function openEditTimetable() {
   showView('editTimetableView');
 }
 
-// [Edit] 수정 페이지 저장
+// [Edit] 시간표 수정 내용 저장 - 트랜잭션 방식 (삭제 후 삽입)
 async function saveEditedTimetable() {
   const btn = document.getElementById('btnSaveEditedTimetable');
-  btn.disabled = true; btn.innerText = "저장 중...";
+  btn.disabled = true; btn.innerText = "수정 내용 반영 중...";
   try {
     const newData = getGridData(state.user.id, state.user.name, 'editTableBody');
+    // 본인의 기존 시간표 일괄 삭제
     await supabase.from('basic_timetable').delete().eq('user_id', state.user.id);
+    // 새로운 시간표 일괄 삽입
     if (newData.length) await supabase.from('basic_timetable').insert(newData);
-    alert('수정되었습니다.'); initApp();
-  } catch (err) { alert('실패'); btn.disabled = false; btn.innerText = "수정 완료"; }
+    
+    alert('시간표가 성공적으로 수정되었습니다.');
+    initApp();
+  } catch (err) { alert('시간표 수정 실패'); btn.disabled = false; btn.innerText = "수정 완료"; }
 }
 
+// 그리드 수집 헬퍼 함수
 function getGridData(uid, uname, bodyId) {
   const data = [];
   ['월','화','수','목','금'].forEach(d => {
@@ -147,6 +157,7 @@ function getGridData(uid, uname, bodyId) {
   return data;
 }
 
+// 셀 내용 수동 채우기 헬퍼
 function fillCellManual(el, val, type) {
   el.innerText = type === 'sub' ? val.substring(0, 4) : val;
   el.dataset.fullName = val;
@@ -159,6 +170,7 @@ function fillCellManual(el, val, type) {
   }
 }
 
+// 그리드 렌더링 (가입/수정 공통 사용)
 function renderSetupGrid(viewType, keepValues = false) {
   const bodyId = viewType === 'edit' ? 'editTableBody' : 'setupTableBody';
   const subContainerId = viewType === 'edit' ? 'editQuickSub' : 'quickSubSection';
@@ -192,6 +204,7 @@ function renderSetupGrid(viewType, keepValues = false) {
   });
 }
 
+// 태그 렌더링 시스템
 window.renderTags = (type, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -221,12 +234,13 @@ window.fillCell = (type, val, color, containerId) => {
   }
 };
 
+// 태그 추가/삭제/편집 시스템
 window.showInlineInput = (type, cid) => { document.getElementById(`btnShow${type}Input${cid}`).classList.add('hidden'); document.getElementById(`${type}InputWrap${cid}`).classList.remove('hidden'); const i = document.getElementById(`${type}MiniInput${cid}`); i.focus(); i.onkeypress = (e) => { if(e.key === 'Enter') window.submitInlineInput(type, cid); }; };
 window.submitInlineInput = (type, cid) => { const i = document.getElementById(`${type}MiniInput${cid}`); const v = i.value.trim(); if(v) { const arr = type === 'sub' ? state.signUp.subs : state.signUp.gcs; if(!arr.includes(v)) arr.push(v); if(type === 'gc') arr.sort(); } window.renderTags(type, cid); };
 window.removeTag = (type, i, cid) => { (type === 'sub' ? state.signUp.subs : state.signUp.gcs).splice(i, 1); window.renderTags(type, cid); };
 window.toggleTagEditMode = (mode) => { state.isTagEditMode = !state.isTagEditMode; document.getElementById(mode === 'edit' ? 'btnEditTagsEditView' : 'btnEditTagsStep4').innerText = state.isTagEditMode ? "완료" : "편집"; renderSetupGrid(mode === 'edit' ? 'edit' : 'setup', true); };
 
-// [Dashboard] 기록 로직
+// [Dashboard] 메인 화면 로딩 및 기록
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -272,7 +286,7 @@ async function handleConfirmMove() {
   const targetDate = document.getElementById('moveTargetDate').value;
   const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
   const originalDate = state.activeDate.toISOString().split('T')[0];
-  if (!targetDate) return alert('날짜 선택!');
+  if (!targetDate) return alert('이동할 날짜를 선택해 주세요.');
   showView('loadingView');
   await supabase.from('lesson_changes').insert([
     { user_id: state.user.id, user_name: state.user.name, date: originalDate, period: state.selectedMoveItem.period, subject: state.selectedMoveItem.subject, grade_class: state.selectedMoveItem.grade_class, change_type: 'cancelled' },
@@ -283,7 +297,7 @@ async function handleConfirmMove() {
 
 function handleNextButton() {
   if (state.signUp.step === 1) {
-    if (!document.getElementById('regName').value || !document.getElementById('regPin').value) return alert('입력!');
+    if (!document.getElementById('regName').value || !document.getElementById('regPin').value) return alert('성함과 PIN을 모두 입력해 주세요.');
     state.signUp.step++; updateSignUpUI();
   } else if (state.signUp.step < 4) { state.signUp.step++; updateSignUpUI(); } 
   else handleFinalSignUpSubmit();
