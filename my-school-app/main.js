@@ -7,7 +7,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 let state = {
   user: null,
   activeDate: new Date(),
-  signUp: { step: 1, subs: [], gcs: [], isNameVerified: false, verifiedName: "" },
+  signUp: { step: 1, subs: [], gcs: [] },
   activeCell: null, 
   maxPeriods: 7, 
   isTagEditMode: false,
@@ -19,7 +19,7 @@ let deferredPrompt;
 const subPalette = ['#1E293B', '#1E40AF', '#065F46', '#991B1B', '#854D0E', '#5B21B6', '#9D174D', '#115E59'];
 const gradePalette = { '1': '#10B981', '2': '#3B82F6', '3': '#F59E0B', 'default': '#64748B' };
 
-// --- UI 알림 및 뷰 제어 ---
+// --- UI 헬퍼 함수 ---
 window.showAlert = (msg) => {
     const alertBox = document.getElementById('customAlert');
     const alertMsg = document.getElementById('alertMessage');
@@ -95,21 +95,12 @@ async function initApp() {
 function initEvents() {
   document.getElementById('btnLogin')?.addEventListener('click', handleLogin);
   document.getElementById('btnOpenSignUp')?.addEventListener('click', () => {
-    state.signUp = { step: 1, subs: [], gcs: [], isNameVerified: false, verifiedName: "" };
+    state.signUp = { step: 1, subs: [], gcs: [] };
     updateSignUpUI(); showView('signUpContainer');
   });
   document.getElementById('btnSignUpBack')?.addEventListener('click', () => { if (state.signUp.step > 1) { state.signUp.step--; updateSignUpUI(); }});
   document.getElementById('btnSignUpClose')?.addEventListener('click', () => showView('loginView'));
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
-  
-  // 중복 확인 버튼 이벤트
-  document.getElementById('btnCheckDup')?.addEventListener('click', checkNameDuplicate);
-  
-  // 이름 입력 필드 수정 시 검증 상태 리셋
-  document.getElementById('regName')?.addEventListener('input', () => {
-    state.signUp.isNameVerified = false;
-    updateVerificationUI(null);
-  });
 
   document.getElementById('btnSettings')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(true); });
   document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
@@ -144,18 +135,17 @@ function initEvents() {
   document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
 }
 
-// --- 중복 확인 코어 로직 (버그 수정됨) ---
-async function checkNameDuplicate() {
-    const nameInput = document.getElementById('regName');
-    const name = nameInput?.value.trim();
-    if (!name) return showAlert('이름을 입력해주세요.');
+// --- 핵심: 다음 단계 버튼 클릭 시 중복 체크 ---
+async function handleNextButton() {
+  const step = state.signUp.step;
+  if (step === 1) {
+    const name = document.getElementById('regName')?.value.trim();
+    const pin = document.getElementById('regPin')?.value.trim();
+    if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
 
-    const btn = document.getElementById('btnCheckDup');
-    btn.disabled = true;
-    btn.innerText = "확인 중...";
-
+    // [핵심 로직] 버튼 클릭 시 즉시 중복 체크 수행
+    showView('loadingView');
     try {
-        // .select('*')로 전체 조회 후 length 체크 (더 확실한 방법)
         const { data, error } = await supabase
             .from('profiles')
             .select('name')
@@ -163,58 +153,19 @@ async function checkNameDuplicate() {
 
         if (error) throw error;
 
-        // 데이터가 하나라도 있으면 중복임
+        // 중복 발견 시
         if (data && data.length > 0) {
-            state.signUp.isNameVerified = false;
-            updateVerificationUI(false);
-            showAlert('이미 사용 중인 이름입니다.');
-        } else {
-            state.signUp.isNameVerified = true;
-            state.signUp.verifiedName = name;
-            updateVerificationUI(true);
+            showView('signUpContainer'); // 로딩 화면 끄고 가입 화면으로
+            return showAlert('이미 가입된 이름입니다.'); // 여기서 리턴하여 단계 이동 차단
         }
     } catch (e) {
-        console.error("중복 확인 에러:", e);
-        showAlert('서버와 통신할 수 없습니다.');
-    } finally {
-        btn.disabled = false;
+        console.error("중복 체크 에러:", e);
+        showView('signUpContainer');
+        return showAlert('서버 확인 중 오류가 발생했습니다.');
     }
-}
-
-function updateVerificationUI(isAvailable) {
-    const msg = document.getElementById('nameCheckMsg');
-    const btn = document.getElementById('btnCheckDup');
-    if (isAvailable === true) {
-        msg.innerText = "✓ 사용 가능한 이름입니다.";
-        msg.className = "text-[11px] font-black px-2 mb-4 text-emerald-500 block";
-        btn.classList.add('btn-verified');
-        btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>확인됨';
-    } else if (isAvailable === false) {
-        msg.innerText = "✕ 이미 가입된 이름입니다.";
-        msg.className = "text-[11px] font-black px-2 mb-4 text-rose-500 block";
-        btn.classList.remove('btn-verified');
-        btn.innerText = "중복 확인";
-    } else {
-        msg.classList.add('hidden');
-        btn.classList.remove('btn-verified');
-        btn.innerText = "중복 확인";
-    }
-}
-
-// --- 가입 단계 이동 및 최종 검증 ---
-async function handleNextButton() {
-  const step = state.signUp.step;
-  if (step === 1) {
-    const name = document.getElementById('regName')?.value.trim();
-    const pin = document.getElementById('regPin')?.value.trim();
     
-    if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
-    
-    // 중복 확인 여부 및 검증된 이름과 현재 입력값이 같은지 대조
-    if (!state.signUp.isNameVerified || name !== state.signUp.verifiedName) {
-        return showAlert('이름 중복 확인을 먼저 완료해주세요.');
-    }
-
+    // 중복이 없을 때만 아래 코드가 실행됨
+    showView('signUpContainer');
     state.signUp.step = 2; 
     updateSignUpUI();
     return;
@@ -251,14 +202,14 @@ async function handleFinalSignUpSubmit() {
     options: { data: { full_name: name } } 
   });
 
-  if (error) { showAlert('가입 실패: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  if (error) { showAlert('가입 처리 중 오류: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
   
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
     if (timetableData.length) await supabase.from('basic_timetable').insert(timetableData);
     showAlert('가입이 완료되었습니다!'); location.reload();
-  } catch (err) { showAlert('DB 저장 실패'); btn.disabled = false; }
+  } catch (err) { showAlert('데이터 저장 실패'); btn.disabled = false; }
 }
 
 async function handleUpdateTimetable() {
@@ -456,7 +407,7 @@ function toggleSheet(open) {
 }
 function updateDateUI() {
   const d = document.getElementById('currentDateDisplay');
-  if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+  if (d) d.innerText = state.activeDate.toLocaleDateString('long', { month: 'long', day: 'numeric', weekday: 'long' });
 }
 function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
 
