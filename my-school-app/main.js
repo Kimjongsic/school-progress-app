@@ -11,7 +11,8 @@ let state = {
   activeCell: null, 
   maxPeriods: 7, 
   isTagEditMode: false,
-  selectedItem: null
+  selectedItem: null,
+  selectedMoveItem: null
 };
 
 let deferredPrompt;
@@ -82,16 +83,13 @@ async function initApp() {
   const userDisplay = document.getElementById('userNameDisplay');
   if (userDisplay) userDisplay.innerText = state.user.name;
 
-  // 색상 팔레트 구성을 위해 기존 시간표 정보 로드
   const { data: current } = await supabase.from('basic_timetable').select('*').eq('user_id', state.user.id);
   if (current && current.length > 0) {
     state.signUp.subs = [...new Set(current.map(i => i.subject))];
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); 
-  fetchTimetable(); 
-  checkInstallButtonVisibility();
+  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -105,8 +103,8 @@ function initEvents() {
   document.getElementById('btnNextStep')?.addEventListener('click', handleNextButton);
   
   document.getElementById('btnSettings')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(true); });
-  document.getElementById('settingsOverlay')?.addEventListener('click', () => toggleSettings(false));
-  document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); });
+  document.getElementById('settingsOverlay')?.addEventListener('click', () => { toggleSettings(false); toggleMoveSheet(false); toggleSheet(false); });
+  document.getElementById('sheetOverlay')?.addEventListener('click', () => { toggleSheet(false); toggleSettings(false); toggleMoveSheet(false); });
 
   document.getElementById('btnMenuEditTime')?.addEventListener('click', openEditTimetable);
   document.getElementById('btnMenuInquiry')?.addEventListener('click', () => { toggleSettings(false); document.getElementById('inquiryPopup').classList.remove('hidden'); });
@@ -125,6 +123,7 @@ function initEvents() {
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; checkInstallButtonVisibility(); });
 
   document.getElementById('btnSaveProgress')?.addEventListener('click', saveProgress);
+  document.getElementById('btnConfirmMove')?.addEventListener('click', handleConfirmMove);
   document.getElementById('btnPrevDate')?.addEventListener('click', () => moveDate(-1));
   document.getElementById('btnNextDate')?.addEventListener('click', () => moveDate(1));
   document.getElementById('dateTextGroup')?.addEventListener('click', () => document.getElementById('datePicker')?.showPicker());
@@ -136,14 +135,51 @@ function initEvents() {
   document.getElementById('btnRemovePeriodEdit')?.addEventListener('click', () => { if(state.maxPeriods > 1) { state.maxPeriods--; renderSetupGrid(true, 'Edit'); }});
 }
 
-// --- 비즈니스 로직 ---
+// --- 수업 이동 로직 ---
+window.openMoveSheet = (item) => {
+    state.selectedMoveItem = item;
+    const dateInput = document.getElementById('moveTargetDate');
+    const periodSelect = document.getElementById('moveTargetPeriod');
+    dateInput.value = state.activeDate.toISOString().split('T')[0];
+    let periodHtml = '';
+    for(let i=1; i<=state.maxPeriods; i++) periodHtml += `<option value="${i}">${i}교시</option>`;
+    periodSelect.innerHTML = periodHtml;
+    periodSelect.value = item.period;
+    toggleMoveSheet(true);
+};
+
+async function handleConfirmMove() {
+    const targetDate = document.getElementById('moveTargetDate').value;
+    const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
+    const originalDate = state.activeDate.toISOString().split('T')[0];
+    const item = state.selectedMoveItem;
+    if (!targetDate) return showAlert('날짜를 선택하세요.');
+    showView('loadingView');
+    try {
+        const targetDayName = ['일','월','화','수','목','금','토'][new Date(targetDate).getDay()];
+        const { data: bExist } = await supabase.from('basic_timetable').select('*').eq('user_id', state.user.id).eq('day', targetDayName).eq('period', targetPeriod).maybeSingle();
+        const { data: aExist } = await supabase.from('lesson_changes').select('*').eq('user_id', state.user.id).eq('date', targetDate).eq('period', targetPeriod).eq('change_type', 'added').maybeSingle();
+        const { data: cExist } = await supabase.from('lesson_changes').select('*').eq('user_id', state.user.id).eq('date', targetDate).eq('period', targetPeriod).eq('change_type', 'cancelled').maybeSingle();
+        if ((bExist && !cExist) || aExist) {
+            showView('mainView');
+            return showAlert('해당 시간에는 이미 수업이 있습니다.');
+        }
+        await supabase.from('lesson_changes').insert([
+            { user_id: state.user.id, user_name: state.user.name, date: originalDate, period: item.period, subject: item.subject, grade_class: item.grade_class, change_type: 'cancelled' },
+            { user_id: state.user.id, user_name: state.user.name, date: targetDate, period: targetPeriod, subject: item.subject, grade_class: item.grade_class, change_type: 'added' }
+        ]);
+        showAlert('수업이 이동되었습니다.');
+        toggleMoveSheet(false); fetchTimetable();
+    } catch (e) { showAlert('이동 중 오류 발생'); } finally { showView('mainView'); }
+}
+
+// --- 가입/로그인 로직 ---
 async function handleNextButton() {
   const step = state.signUp.step;
   if (step === 1) {
     const name = document.getElementById('regName')?.value.trim();
     const pin = document.getElementById('regPin')?.value.trim();
     if (!name || pin.length < 4) return showAlert('정보를 올바르게 입력하세요.');
-
     showView('loadingView');
     try {
         const { data, error } = await supabase.from('profiles').select('name').eq('name', name);
@@ -158,7 +194,6 @@ async function handleNextButton() {
     }
     showView('signUpContainer'); state.signUp.step = 2; updateSignUpUI(); return;
   } 
-
   if (step < 4) { state.signUp.step++; updateSignUpUI(); } 
   else { handleFinalSignUpSubmit(); }
 }
@@ -180,14 +215,8 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
   btn.disabled = true; showView('loadingView');
-  const { data, error } = await supabase.auth.signUp({ 
-    email: internalId, 
-    password: `${pin}0000`, 
-    options: { data: { full_name: name } } 
-  });
-
+  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
   if (error) { showAlert('가입 처리 중 오류: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
-  
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
@@ -207,7 +236,7 @@ async function handleUpdateTimetable() {
   } catch (err) { showAlert('수정 실패'); } finally { btn.disabled = false; }
 }
 
-// --- 렌더링 로직 ---
+// --- 렌더링/태그 관리 ---
 function gatherTimetableData(userId, userName, suffix) {
     const data = [];
     ['월','화','수','목','금'].forEach(d => {
@@ -335,7 +364,7 @@ async function openEditTimetable() {
     });
 }
 
-// --- 대시보드 데이터 ---
+// --- 대시보드 로직 ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -344,31 +373,44 @@ async function fetchTimetable() {
   list.innerHTML = `<div class="py-20 text-center"><i class="fa-solid fa-spinner fa-spin text-2xl text-slate-200"></i></div>`;
   
   try {
-    const [basic, records] = await Promise.all([
+    const [basic, records, changes] = await Promise.all([
       supabase.from('basic_timetable').select('*').eq('day', dayName).eq('user_id', state.user.id),
-      supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id)
+      supabase.from('lesson_records').select('*').eq('date', dateStr).eq('user_id', state.user.id),
+      supabase.from('lesson_changes').select('*').eq('date', dateStr).eq('user_id', state.user.id)
     ]);
     
-    if (!basic.data || basic.data.length === 0) { 
+    let finalSchedule = [];
+    if (basic.data) {
+        const cancelledPeriods = changes.data?.filter(c => c.change_type === 'cancelled').map(c => c.period) || [];
+        finalSchedule = basic.data.filter(b => !cancelledPeriods.includes(b.period));
+    }
+    if (changes.data) {
+        const addedLessons = changes.data.filter(c => c.change_type === 'added');
+        finalSchedule = [...finalSchedule, ...addedLessons];
+    }
+    finalSchedule.sort((a, b) => a.period - b.period);
+
+    if (finalSchedule.length === 0) { 
       list.innerHTML = `<div class="py-20 text-center text-slate-400 font-bold text-sm">수업이 없는 날입니다 ☕️</div>`; 
       return; 
     }
 
-    const dashboardHTML = await Promise.all(basic.data.sort((a,b)=>a.period - b.period).map(async (item) => {
+    const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
       const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
       const today = records.data?.find(r => r.period == item.period);
       const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
       const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
       return `
-        <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
+        <div class="class-card bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm active:scale-95 transition-all cursor-pointer text-left">
           <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
               <span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase tracking-tight">${item.period}교시</span>
               <span class="px-3 py-1 rounded-full text-[12px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span>
               <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>
             </div>
+            <button onclick='event.stopPropagation(); window.openMoveSheet(${JSON.stringify(item)})' class="w-10 h-10 bg-slate-50 text-slate-300 rounded-xl flex items-center justify-center active:bg-blue-50 active:text-[#005CC5] transition-all"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></button>
           </div>
-          <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+          <div class="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50" onclick='window.openInputSheet(${JSON.stringify(item)}, "${prev?.content || '첫 기록'}", ${JSON.stringify(today)})'>
             <div class="flex items-center gap-3">
               <span class="text-[9px] font-black text-amber-500 w-10 shrink-0 tracking-widest leading-none">LAST</span>
               <p class="text-[13px] font-black text-slate-700 line-clamp-1 flex-1 leading-none">${prev?.content || '-'}</p>
@@ -393,12 +435,16 @@ function toggleSettings(open) {
   if(open) { s?.classList.add('sheet-open'); o?.classList.add('overlay-show'); }
   else { s?.classList.remove('sheet-open'); o?.classList.remove('overlay-show'); }
 }
-
+function toggleMoveSheet(open) {
+    const s = document.getElementById('moveSheet');
+    const o = document.getElementById('sheetOverlay');
+    if(open) { s?.classList.add('sheet-open'); o?.classList.add('overlay-show'); }
+    else { s?.classList.remove('sheet-open'); o?.classList.remove('overlay-show'); }
+}
 function updateDateUI() {
   const d = document.getElementById('currentDateDisplay');
   if (d) d.innerText = state.activeDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 }
-
 function moveDate(offset) { state.activeDate.setDate(state.activeDate.getDate() + offset); updateDateUI(); fetchTimetable(); }
 
 function updateSignUpUI() {
@@ -426,12 +472,8 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   document.getElementById('prevProgressText').innerText = prevContent;
-  const contentInput = document.getElementById('progContent');
-  if (contentInput) contentInput.value = todayRec ? todayRec.content : '';
-  const o = document.getElementById('sheetOverlay');
-  const s = document.getElementById('inputSheet');
-  if(s) s.style.transform = 'translateY(0)';
-  if(o) o.classList.add('overlay-show');
+  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
+  toggleSheet(true);
 };
 
 function toggleSheet(open) {
