@@ -47,7 +47,7 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
-// 로컬 날짜 문자열 생성 (KST 안전 방식)
+// 로컬 날짜 문자열 생성 (KST 기준 YYYY-MM-DD)
 function getLocalDateString(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -55,7 +55,7 @@ function getLocalDateString(date) {
     return `${year}-${month}-${day}`;
 }
 
-// --- 앱 초기화 ---
+// --- 초기화 ---
 window.onload = () => {
   initEvents();
   checkSession();
@@ -97,7 +97,9 @@ async function initApp() {
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
+  updateDateUI(); 
+  fetchTimetable(); 
+  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -168,10 +170,12 @@ async function handleConfirmMove() {
         const { data: bExist } = await supabase.from('basic_timetable').select('*').eq('user_id', state.user.id).eq('day', targetDayName).eq('period', targetPeriod).maybeSingle();
         const { data: aExist } = await supabase.from('lesson_changes').select('*').eq('user_id', state.user.id).eq('date', targetDate).eq('period', targetPeriod).eq('change_type', 'added').maybeSingle();
         const { data: cExist } = await supabase.from('lesson_changes').select('*').eq('user_id', state.user.id).eq('date', targetDate).eq('period', targetPeriod).eq('change_type', 'cancelled').maybeSingle();
+        
         if ((bExist && !cExist) || aExist) {
             showView('mainView');
             return showAlert('해당 시간에는 이미 수업이 있습니다.');
         }
+
         await supabase.from('lesson_changes').insert([
             { user_id: state.user.id, user_name: state.user.name, date: originalDate, period: item.period, subject: item.subject, grade_class: item.grade_class, change_type: 'cancelled' },
             { user_id: state.user.id, user_name: state.user.name, date: targetDate, period: targetPeriod, subject: item.subject, grade_class: item.grade_class, change_type: 'added' }
@@ -223,8 +227,14 @@ async function handleFinalSignUpSubmit() {
   const pin = document.getElementById('regPin').value.trim();
   const internalId = generateInternalId(name, pin);
   btn.disabled = true; showView('loadingView');
-  const { data, error } = await supabase.auth.signUp({ email: internalId, password: `${pin}0000`, options: { data: { full_name: name } } });
+  const { data, error } = await supabase.auth.signUp({ 
+    email: internalId, 
+    password: `${pin}0000`, 
+    options: { data: { full_name: name } } 
+  });
+
   if (error) { showAlert('가입 처리 중 오류: ' + error.message); btn.disabled = false; showView('signUpContainer'); return; }
+  
   try {
     await supabase.from('profiles').insert({ user_id: data.user.id, name: name, pin_code: pin });
     const timetableData = gatherTimetableData(data.user.id, name, 'Signup');
@@ -406,6 +416,7 @@ async function fetchTimetable() {
     const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
       const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
       
+      // [수정] 정확한 진도 데이터를 찾기 위해 교시+학급+과목 모두 체크
       const today = records.data?.find(r => 
           r.period == item.period && 
           r.grade_class === item.grade_class && 
@@ -442,7 +453,7 @@ async function fetchTimetable() {
   }
 }
 
-// --- UI 상태 ---
+// --- UI 제어 ---
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');

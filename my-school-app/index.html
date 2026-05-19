@@ -47,7 +47,12 @@
     .header-action-btn { width: 40px; height: 40px; background-color: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748B; transition: all 0.2s; }
     .header-action-btn:active { transform: scale(0.9); background-color: #E2E8F0; }
 
-    #settingsSheet, #moveSheet { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 150; }
+    /* 모든 하단 시트의 초기 상태를 확실하게 숨김 처리 */
+    #settingsSheet, #moveSheet, #inputSheet { 
+        transform: translateY(100%); 
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 150;
+    }
     .sheet-open { transform: translateY(0) !important; }
   </style>
 </head>
@@ -242,7 +247,7 @@
         </div>
     </div>
 
-    <div id="inputSheet" class="fixed inset-x-0 bottom-0 z-[150] transform translate-y(100%) transition-transform duration-300">
+    <div id="inputSheet" class="fixed inset-x-0 bottom-0">
       <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12 text-left">
         <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
         <header class="mb-6"><div id="sheetTagContainer" class="flex items-center gap-2 mb-3"></div><h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">진도 기록</h3></header>
@@ -254,7 +259,7 @@
       </div>
     </div>
 
-    <div id="moveSheet" class="fixed inset-x-0 bottom-0 z-[160] transform translate-y(100%) transition-transform duration-300">
+    <div id="moveSheet" class="fixed inset-x-0 bottom-0">
         <div class="bg-white rounded-t-[48px] shadow-2xl px-10 pt-4 pb-12 text-left">
           <div class="w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div>
           <header class="mb-8"><h3 class="text-2xl font-black text-slate-900 tracking-tight">수업 이동</h3><p class="text-sm font-medium text-slate-400 mt-1">이 수업을 언제로 옮길까요?</p></header>
@@ -265,7 +270,6 @@
           </div>
         </div>
     </div>
-
   </div>
 
   <script type="module" src="/main.js"></script>
