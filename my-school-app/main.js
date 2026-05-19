@@ -89,7 +89,9 @@ async function initApp() {
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
+  updateDateUI(); 
+  fetchTimetable(); 
+  checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -364,7 +366,7 @@ async function openEditTimetable() {
     });
 }
 
-// --- 대시보드 로직 ---
+// --- 대시보드 로직 (데이터 매칭 수정 완료) ---
 async function fetchTimetable() {
   const dateStr = state.activeDate.toISOString().split('T')[0];
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
@@ -397,7 +399,14 @@ async function fetchTimetable() {
 
     const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
       const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
-      const today = records.data?.find(r => r.period == item.period);
+      
+      // [수정] 매칭 기준 강화: 교시 + 학급 + 과목 일치 확인
+      const today = records.data?.find(r => 
+          r.period == item.period && 
+          r.grade_class === item.grade_class && 
+          r.subject === item.subject
+      );
+
       const subColor = subPalette[state.signUp.subs.indexOf(item.subject) % subPalette.length] || '#1E293B';
       const gcColor = gradePalette[item.grade_class[0]] || gradePalette.default;
       return `
@@ -428,7 +437,7 @@ async function fetchTimetable() {
   }
 }
 
-// --- UI 상태 ---
+// --- UI 제어 ---
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');
