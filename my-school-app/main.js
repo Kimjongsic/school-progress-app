@@ -47,7 +47,15 @@ function generateInternalId(name, pin) {
   return `id_${hexName}_${pin}@internal.school`;
 }
 
-// --- 초기화 ---
+// 로컬 날짜 문자열 생성 (KST 안전 방식)
+function getLocalDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// --- 앱 초기화 ---
 window.onload = () => {
   initEvents();
   checkSession();
@@ -89,9 +97,7 @@ async function initApp() {
     state.signUp.gcs = [...new Set(current.map(i => i.grade_class))].sort();
     state.maxPeriods = Math.max(7, ...current.map(i => i.period));
   }
-  updateDateUI(); 
-  fetchTimetable(); 
-  checkInstallButtonVisibility();
+  updateDateUI(); fetchTimetable(); checkInstallButtonVisibility();
 }
 
 function initEvents() {
@@ -142,7 +148,7 @@ window.openMoveSheet = (item) => {
     state.selectedMoveItem = item;
     const dateInput = document.getElementById('moveTargetDate');
     const periodSelect = document.getElementById('moveTargetPeriod');
-    dateInput.value = state.activeDate.toISOString().split('T')[0];
+    dateInput.value = getLocalDateString(state.activeDate);
     let periodHtml = '';
     for(let i=1; i<=state.maxPeriods; i++) periodHtml += `<option value="${i}">${i}교시</option>`;
     periodSelect.innerHTML = periodHtml;
@@ -153,7 +159,7 @@ window.openMoveSheet = (item) => {
 async function handleConfirmMove() {
     const targetDate = document.getElementById('moveTargetDate').value;
     const targetPeriod = parseInt(document.getElementById('moveTargetPeriod').value);
-    const originalDate = state.activeDate.toISOString().split('T')[0];
+    const originalDate = getLocalDateString(state.activeDate);
     const item = state.selectedMoveItem;
     if (!targetDate) return showAlert('날짜를 선택하세요.');
     showView('loadingView');
@@ -368,7 +374,7 @@ async function openEditTimetable() {
 
 // --- 대시보드 로직 (데이터 매칭 수정 완료) ---
 async function fetchTimetable() {
-  const dateStr = state.activeDate.toISOString().split('T')[0];
+  const dateStr = getLocalDateString(state.activeDate);
   const dayName = ['일','월','화','수','목','금','토'][state.activeDate.getDay()];
   const list = document.getElementById('timetableList');
   if (!list) return;
@@ -400,7 +406,6 @@ async function fetchTimetable() {
     const dashboardHTML = await Promise.all(finalSchedule.map(async (item) => {
       const { data: prev } = await supabase.from('lesson_records').select('content').eq('grade_class', item.grade_class).eq('subject', item.subject).eq('user_id', state.user.id).lt('date', dateStr).order('date', { ascending: false }).limit(1).maybeSingle();
       
-      // [수정] 매칭 기준 강화: 교시 + 학급 + 과목 일치 확인
       const today = records.data?.find(r => 
           r.period == item.period && 
           r.grade_class === item.grade_class && 
@@ -437,7 +442,7 @@ async function fetchTimetable() {
   }
 }
 
-// --- UI 제어 ---
+// --- UI 상태 ---
 function toggleSettings(open) {
   const s = document.getElementById('settingsSheet');
   const o = document.getElementById('settingsOverlay');
@@ -481,15 +486,16 @@ window.openInputSheet = (item, prevContent, todayRec) => {
   const tagHtml = `<span class="text-[14px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg uppercase">${item.period}교시</span><span class="px-4 py-1.5 rounded-full text-[13px] font-black text-white shadow-sm" style="background:${subColor}">${item.subject}</span><span class="px-3 py-1 rounded-full text-[12px] font-black bg-white border-2" style="color:${gcColor}; border-color:${gcColor}">${item.grade_class}</span>`;
   document.getElementById('sheetTagContainer').innerHTML = tagHtml;
   document.getElementById('prevProgressText').innerText = prevContent;
-  document.getElementById('progContent').value = todayRec ? todayRec.content : '';
+  const contentInput = document.getElementById('progContent');
+  if (contentInput) contentInput.value = todayRec ? todayRec.content : '';
   toggleSheet(true);
 };
 
 function toggleSheet(open) {
   const s = document.getElementById('inputSheet');
   const o = document.getElementById('sheetOverlay');
-  if(s) s.style.transform = open ? 'translateY(0)' : 'translateY(100%)';
-  if(o) open ? o.classList.add('overlay-show') : o.classList.remove('overlay-show');
+  if(open) { s.style.transform = 'translateY(0)'; o.classList.add('overlay-show'); }
+  else { s.style.transform = 'translateY(100%)'; o.classList.remove('overlay-show'); }
 }
 
 async function saveProgress() {
@@ -497,7 +503,7 @@ async function saveProgress() {
   if (!content) return showAlert('내용을 입력하세요.');
   showView('loadingView');
   try {
-    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: state.activeDate.toISOString().split('T')[0], period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: '-' }, { onConflict: 'user_id, date, period, grade_class, subject' });
+    await supabase.from('lesson_records').upsert({ user_id: state.user.id, user_name: state.user.name, date: getLocalDateString(state.activeDate), period: state.selectedItem.period, grade_class: state.selectedItem.grade_class, subject: state.selectedItem.subject, content: content, note: '-' }, { onConflict: 'user_id, date, period, grade_class, subject' });
     toggleSheet(false); fetchTimetable();
   } catch (err) { showAlert('저장 실패'); } finally { showView('mainView'); }
 }
